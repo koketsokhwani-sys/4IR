@@ -2,9 +2,9 @@
 
 ## Phase 1 scope
 
-The app uses the actual Next.js framework with TypeScript and Tailwind v4 through PostCSS. Development and production builds use Next.js’s supported Webpack option because Turbopack’s CSS worker socket is blocked by this environment’s sandbox. Most content is rendered on the server; only the navigation menu requires client state. Package definitions, feature availability, FAQs and illustrative project data are centralised in `src/lib/content.ts`.
+The app uses the actual Next.js framework with TypeScript and Tailwind v4 through PostCSS. Development and production builds use Next.js’s supported Webpack option because Turbopack’s CSS worker socket is blocked by this environment’s sandbox. Public pages are rendered at build time and exported as static files. The navigation menu and query-string package selection run in the browser. Package definitions, feature availability, FAQs and illustrative project data are centralised in `src/lib/content.ts`.
 
-Package buttons navigate to a real details page and preserve their selected plan in the URL. Selecting a different plan works without authentication. Registration and checkout are explicitly unavailable until their designated phases. No fake submissions, fabricated testimonials, live-client claims, customer records or payment actions are included.
+Package buttons navigate to a real details page and preserve their selected plan in the URL. Static hosting cannot read query strings on the server, so the selected package appears after JavaScript hydrates; the exported fallback shows the unselected chooser. Missing, unknown and repeated plan parameters leave the chooser unselected. Selecting a different plan works without authentication. Registration and checkout are explicitly unavailable until their designated phases. No fake submissions, fabricated testimonials, live-client claims, customer records or payment actions are included.
 
 The visual system uses ivory, green and coral, responsive layouts, original CSS illustrations and limited motion. Illustrations are decorative and hidden from assistive technology; the surrounding text describes each concept. They require no third-party image requests. Native details elements keep FAQ interactions available without JavaScript. The comparison table scrolls within its container on small screens.
 
@@ -12,7 +12,7 @@ Phase 1 feature descriptions are initial package proposals, editable centrally. 
 
 ## Verification
 
-Run `npm run build` followed by `npm run typecheck`. GitHub Actions repeats these checks on pull requests and pushes to main/work. A production build verifies compilation, generated route types, server rendering and static generation of the homepage, pricing and all three example pages.
+Run `npm run build` followed by `npm run typecheck`. GitHub Actions repeats these checks on pull requests and pushes to main/work. A production build verifies compilation, generated route types and static export of the homepage, pricing, package chooser and all three example pages. Run `npm run check:export` to verify the `out/` deployment artifacts.
 
 Validation on 3 November 2026: production compilation, build-time TypeScript checking and static generation passed with Next.js 16.4.5. The standalone `npm run typecheck` passed. `npm audit --omit=dev` reported zero vulnerabilities, and `git diff --check` passed. The build required permission to launch compiler subprocesses in this sandbox.
 

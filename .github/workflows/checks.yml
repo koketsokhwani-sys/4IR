@@ -39,3 +39,39 @@ jobs:
       - run: npm run typecheck
       - run: npx playwright install --with-deps chromium
       - run: npm run test:browser
+  # Owner-approved synthetic-data experiment; limited to the existing public draft.
+  customer-local-supabase:
+    # Standard public-repository runner only; never run this paid on a private repo.
+    if: >-
+      github.event_name == 'pull_request' &&
+      github.event.pull_request.number == 3 &&
+      github.event.repository.private == false &&
+      github.repository == 'koketsokhwani-sys/4IR' &&
+      github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    concurrency:
+      group: local-supabase-${{ github.event.pull_request.number }}
+      cancel-in-progress: true
+    defaults:
+      run:
+        working-directory: apps/customer
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          # Deliberately no new cache or uploaded artifacts.
+      - run: npm ci
+      - run: npm run build
+      - run: npx playwright install --with-deps chromium
+      - name: Exercise isolated real Supabase and migration replay
+        run: node scripts/local-supabase-ci.mjs
+      - name: Remove this job's disposable local database on failure or cancellation
+        if: always()
+        run: |
+          npx --yes --package=supabase@3.0.0 supabase stop --project-id 4ir-local-integration --no-backup

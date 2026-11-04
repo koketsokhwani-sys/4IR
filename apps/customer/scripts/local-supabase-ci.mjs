@@ -57,14 +57,40 @@ try {
   // multi-statement schema transaction against this exact local container.
   run("docker", ["exec", "-i", "supabase_db_4ir-local-integration", "psql", "-U", "postgres", "-d", "postgres", "-v", "ON_ERROR_STOP=1", "--single-transaction"], { input: readFileSync("database/foundation.sql", "utf8") });
   browser();
+  console.log("Initial real-auth, ownership and onboarding scenario passed.");
   // Fail on security warnings; do not silently suppress an advisor finding.
   cli("db", "advisors", "--type", "security", "--fail-on", "warn");
   cli("db", "pull", "ci_foundation", "--schema", "public,private", "--yes");
   cli("migration", "list");
   cli("db", "reset", "--no-seed", "--yes");
+  // Discard Auth/REST database connections and prepared statements from before
+  // reset. Only this disposable stack is restarted; no hosted service is used.
+  run("docker", ["restart", "supabase_auth_4ir-local-integration", "supabase_rest_4ir-local-integration"]);
+  for (let attempt = 0; attempt < 30; attempt++) {
+    const state = JSON.parse(run("docker", ["inspect", "supabase_auth_4ir-local-integration"]));
+    if (state[0].State.Health?.Status === "healthy") break;
+    if (attempt === 29) throw new Error("Local Auth did not become healthy after reset.");
+    await new Promise(resolve => setTimeout(resolve, 1000));
+  }
   cli("db", "advisors", "--type", "security", "--fail-on", "warn");
   browser();
   console.log("Real local Supabase lifecycle and ownership checks passed before and after migration replay.");
+} catch (error) {
+  if (started) {
+    const authLog = run("docker", ["logs", "--tail", "40", "supabase_auth_4ir-local-integration"], { allowFailure: true });
+    for (const line of authLog.split("\n")) {
+      try {
+        const entry = JSON.parse(line);
+        if (entry.level === "error") {
+          const detail = String(entry.error ?? entry.msg ?? "Auth error")
+            .replace(/eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+/g, "[JWT]")
+            .replace(/[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+/g, "[synthetic email]");
+          if (!/password|token|secret|authorization/i.test(detail)) console.error("Local Auth error:", detail.slice(0, 700));
+        }
+      } catch { /* Never print unstructured provider output. */ }
+    }
+  }
+  throw error;
 } finally {
   if (started) run("npx", ["--yes", "--package=supabase@3.0.0", "supabase", "stop", "--project-id", "4ir-local-integration", "--no-backup"], { allowFailure: true });
   if (ownsNetwork) run("docker", ["network", "rm", network], { allowFailure: true });

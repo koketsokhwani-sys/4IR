@@ -64,6 +64,10 @@ test("verification code is single-use and bound to the initiating browser PKCE v
     c.name.endsWith("code-verifier"),
   );
   expect(verifier?.httpOnly).toBe(true);
+  expect((await page.request.post("/api/signin", {
+    headers, data: { email: "one@example.test", password: "wrong-long-password" },
+  })).status()).toBe(401);
+  expect((await page.context().cookies()).some(c => c.name.endsWith("code-verifier"))).toBe(true);
   const other = await browser.newContext();
   const otherPage = await other.newPage();
   await otherPage.goto(link);

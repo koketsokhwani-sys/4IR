@@ -144,6 +144,12 @@ export async function POST(
         });
       }
       const result = await db.auth.signInWithPassword(account);
+      if (result.error) {
+        // A failed attempt must not invalidate a pending confirmation/recovery
+        // challenge. Clear browser authentication, but retain its PKCE verifier.
+        await clearLocalSession(true);
+        return json({ error: "Unable to sign in. Check your details and verify your email." }, 401);
+      }
       if (
         result.error ||
         !result.data.user?.email_confirmed_at ||

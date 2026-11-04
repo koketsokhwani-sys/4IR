@@ -53,7 +53,7 @@ For later interactive local integration, copy `apps/customer/.env.example` to th
 
 ## Schema and remaining integration work
 
-`apps/customer/database/foundation.sql` is a tested **candidate schema**, not an applied migration. Supabase CLI 3.0.0 could not initialize because `/home/agent/.supabase` is read-only; a fallback CLI attempt also failed. No actual stack, migrations, advisors or email-provider configuration were run. Do not apply this directly to a live project. With an authorized local stack, iterate the schema, run Supabase security advisors, generate a versioned migration using the CLI, and verify migration history and reset/reapply before committing the integration.
+`apps/customer/database/foundation.sql` is a tested **candidate schema**, not an applied migration. Supabase CLI 3.0.0 now initializes successfully with its documented `SUPABASE_HOME` override pointing to a writable temporary directory. The attempted isolated local stack could not start: Docker failed to unpack `supabase/postgres:17.11.0.011` with `no space left on device` in its separate `vfs` storage. No database/auth containers started, so migrations, advisors and actual email confirmation remain unverified. Do not apply this directly to a live project. With an authorized local stack, iterate the schema, run Supabase security advisors, generate a versioned migration using the CLI, and verify migration history and reset/reapply before committing the integration.
 
 Before any production release, separately approve and verify:
 
@@ -82,6 +82,30 @@ Before any production release, separately approve and verify:
 
 The real Supabase JS/SSR packages are exercised against a stateful loopback protocol fixture, with no cloud resources or real credentials. New checks cover successful and browser-bound PKCE verification/recovery, single-use codes, refresh rotation, rejected/forged sessions, provider outages, signup auto-confirm misconfiguration, local logout during provider failure, stale writes, two-tab conflicts and account switching. The PostgreSQL test additionally verifies revision increments, stale conditional UPDATE returning no rows, and denial of client-written revisions.
 
-No dedicated 4IR backend or credentials are configured in this environment. Connecting to a real provider still requires an owner-approved dedicated 4IR project/local stack, its publishable configuration, confirmed email/redirect policies and an approved migration. Nothing was connected to Munchies. No new credentials, cloud projects, persistent access or deployments were created.
+No dedicated 4IR backend or credentials are configured in this environment. Local stack testing is owner-authorized. Completing it requires a Docker runtime with sufficient storage, its local publishable configuration, confirmed email/redirect policies and a verified migration. Any hosted project or production rollout still requires separate authorization. Nothing was connected to Munchies. No new credentials, cloud projects, persistent access or deployments were created.
 
 Follow-up results: five Node/domain/PostgreSQL tests and fifteen Chromium API/browser tests passed, along with the portal production build, TypeScript and `git diff --check`. The portal dependency audit reported zero vulnerabilities. No live-system verification is implied by these local results.
+
+
+## Isolated local stack attempt (2026-11-04)
+
+`apps/customer/supabase/config.toml` defines a separate `4ir-local-integration` stack: API 56321, PostgreSQL 56322, shadow database 56320, local email inbox 56324, and exact portal callbacks on 127.0.0.1:3102. Email confirmations are required; anonymous signup, storage, realtime, Studio, analytics and edge functions are disabled. The CLI 3.0.0 template calls the email capture section `local_smtp`. Do not link this directory to any hosted project. Both existing Munchies projects remain untouched.
+
+For a future attempt with adequate Docker storage, from `apps/customer`:
+
+```sh
+export SUPABASE_HOME="$(mktemp -d /tmp/4ir-supabase-home.XXXXXX)"
+# Official alternative registry, used where Docker Hub is permitted.
+export SUPABASE_INTERNAL_IMAGE_REGISTRY=docker.io
+npx --yes supabase@3.0.0 telemetry disable
+docker network create --driver bridge \
+  --opt com.docker.network.bridge.host_binding_ipv4=127.0.0.1 4ir-local-integration
+npx --yes supabase@3.0.0 start --network-id 4ir-local-integration \
+  --exclude realtime,storage-api,imgproxy,postgres-meta,studio,edge-runtime,logflare,vector,supavisor
+```
+
+Inspect actual published ports before using the stack; all must be loopback-only. Do not paste `start`/`status` output into logs or PRs: it contains local keys. Never use a service-role key in the portal. Do not enable external SMTP or tunnels. These commands were attempted, but startup did **not** complete in this environment.
+
+Observed: Docker 29.9.2, rootless `vfs`; Auth v2.197.0, PostgREST v16.5, Kong 2.8.1 and Mailpit v1.31.3 downloaded. PostgreSQL 17.11.0.011 layer extraction failed with `no space left on device` under `/home/dockerd/.local/share/docker/vfs/dir/…`. Workspace free space was still 27 GB; that does not establish Docker daemon storage capacity. The CLI retry loop was stopped; the four downloaded images and dedicated network were removed. Docker then reported zero containers, images and volumes. The corrected configuration parses with `supabase services`; successful service startup remains unverified. No cloud resources, account changes, external emails, charges or deployments were requested.
+
+Remaining acceptance checks: successful stack health/port inspection; apply and advise the candidate schema locally; CLI-generated migration and reset/reapply; real captured confirmation/recovery email; actual GoTrue refresh/revocation; two real customers exercising PostgREST ownership isolation; all four package saves and stale-revision conflicts. Existing fixture/PGlite results must not be represented as these checks passing. A preliminary real-service browser test was kept outside the PR because it could not be executed.

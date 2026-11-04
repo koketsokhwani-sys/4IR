@@ -41,12 +41,14 @@ create table public.onboarding_drafts (
   owner_id uuid primary key references auth.users(id) on delete cascade,
   plan text not null check (plan in ('starter','business','booking','store')),
   content jsonb not null check (private.valid_draft_content(content,plan) is true),
+  revision integer not null default 1 check (revision > 0),
   updated_at timestamptz not null default now()
 );
 alter table public.onboarding_drafts enable row level security;
 alter table public.onboarding_drafts force row level security;
 revoke all on public.onboarding_drafts from public, anon, authenticated;
-grant select, insert, update on public.onboarding_drafts to authenticated;
+grant select on public.onboarding_drafts to authenticated;
+grant insert (owner_id, plan, content), update (plan, content) on public.onboarding_drafts to authenticated;
 create policy customer_read on public.onboarding_drafts for select to authenticated
   using ((select auth.uid()) = owner_id and (select private.is_verified_customer()));
 create policy customer_insert on public.onboarding_drafts for insert to authenticated
@@ -56,7 +58,12 @@ create policy customer_update on public.onboarding_drafts for update to authenti
   with check ((select auth.uid()) = owner_id and (select private.is_verified_customer()));
 create function private.touch_draft() returns trigger
 language plpgsql security invoker set search_path = '' as $$
-begin new.updated_at = now(); return new; end;
+begin
+  new.updated_at = now();
+  if TG_OP = 'UPDATE' then new.revision = old.revision + 1;
+  else new.revision = 1; end if;
+  return new;
+end;
 $$;
 revoke all on function private.touch_draft() from public, anon;
 create trigger touch_draft before insert or update on public.onboarding_drafts

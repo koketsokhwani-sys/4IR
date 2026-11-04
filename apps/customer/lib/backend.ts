@@ -28,3 +28,24 @@ export async function backend() {
     },
   });
 }
+
+// Remove browser access even if the provider is unavailable. This does not claim
+// to revoke already-issued tokens or other devices' sessions at the provider.
+export async function clearLocalSession() {
+  const jar = await cookies();
+  for (const { name } of jar.getAll()) {
+    if (
+      name === "4ir-auth" ||
+      /^4ir-auth\.\d+$/.test(name) ||
+      name === "4ir-auth-code-verifier"
+    ) {
+      jar.set(name, "", {
+        httpOnly: true,
+        sameSite: "lax",
+        secure: false,
+        path: "/",
+        maxAge: 0,
+      });
+    }
+  }
+}

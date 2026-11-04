@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { backend } from "../../../lib/backend";
+import { backend, clearLocalSession } from "../../../lib/backend";
 import { portalConfig } from "../../../lib/config";
 import { credentials, validateDraft } from "../../../lib/draft";
 export const dynamic = "force-dynamic";
@@ -33,11 +33,19 @@ export async function GET(
       data: { user },
       error,
     } = await db.auth.getUser();
+    if (error && (!error.status || error.status >= 500 || error.status === 429))
+      return json(
+        {
+          error:
+            "Account service unavailable. Your entries are unchanged; please retry.",
+        },
+        503,
+      );
     if (error || !user || !user.email_confirmed_at || user.is_anonymous)
       return json({ error: "Sign in with a verified email." }, 401);
     const result = await db
       .from("onboarding_drafts")
-      .select("plan, content, updated_at")
+      .select("plan, content, updated_at, revision")
       .eq("owner_id", user.id)
       .maybeSingle();
     if (result.error)
@@ -46,6 +54,8 @@ export async function GET(
         503,
       );
     return json({
+      revision: result.data?.revision ?? 0,
+      account_id: user.id,
       draft: result.data
         ? { plan: result.data.plan, ...result.data.content }
         : null,
@@ -109,7 +119,20 @@ export async function POST(
           },
         });
         // Never accept auto-confirmed signup sessions: verification must be configured.
-        if (result.data.session) await db.auth.signOut();
+        if (result.data.session) {
+          try {
+            await db.auth.signOut();
+          } finally {
+            await clearLocalSession();
+          }
+          return json(
+            {
+              error:
+                "Email verification is not configured. Registration remains closed; ask the developer to correct the local Auth settings.",
+            },
+            503,
+          );
+        }
         if (result.error && result.error.status && result.error.status >= 500)
           return json(
             { error: "Account service unavailable. Please try again." },
@@ -159,14 +182,29 @@ export async function POST(
     }
     if (action === "signout") {
       const { error } = await db.auth.signOut({ scope: "local" });
+      await clearLocalSession();
       return error
-        ? json({ error: "Could not sign out. Please retry." }, 503)
+        ? json(
+            {
+              error:
+                "This browser is signed out, but provider session revocation could not be confirmed. Please retry when the account service returns.",
+            },
+            503,
+          )
         : json({ redirect: "/account?mode=signin" });
     }
     const {
       data: { user },
       error,
     } = await db.auth.getUser();
+    if (error && (!error.status || error.status >= 500 || error.status === 429))
+      return json(
+        {
+          error:
+            "Account service unavailable. Your entries are unchanged; please retry.",
+        },
+        503,
+      );
     if (error || !user || !user.email_confirmed_at || user.is_anonymous)
       return json({ error: "Sign in with a verified email." }, 401);
     if (action === "password") {
@@ -189,6 +227,7 @@ export async function POST(
           400,
         );
       const logout = await db.auth.signOut({ scope: "global" });
+      await clearLocalSession();
       if (logout.error)
         return json(
           {
@@ -200,20 +239,56 @@ export async function POST(
       return json({ redirect: "/account?mode=signin" });
     }
     if (action === "draft") {
+      const { expected_revision, expected_account_id, ...values } = input;
+      if (
+        !Number.isSafeInteger(expected_revision) ||
+        (expected_revision as number) < 0 ||
+        (expected_revision as number) >= 2147483647
+      ) {
+        return json({ error: "Reload your draft before saving." }, 400);
+      }
       let draft;
       try {
-        draft = validateDraft(input);
+        draft = validateDraft(values);
       } catch (e) {
         return json({ error: (e as Error).message }, 400);
       }
+      // Continuity precondition only: never use the submitted ID to select a row.
+      if (expected_account_id !== user.id) {
+        return json(
+          {
+            error:
+              "Your signed-in account changed. Your entries remain here. Copy any changes you want to keep, then reload for the current account.",
+            conflict: true,
+          },
+          409,
+        );
+      }
       const { plan, ...content } = draft;
       // Identity is resolved by Auth; never accept owner IDs, billing state or roles from the request.
-      const result = await db
-        .from("onboarding_drafts")
-        .upsert(
-          { owner_id: user.id, plan, content },
-          { onConflict: "owner_id" },
+      const table = db.from("onboarding_drafts");
+      const result =
+        expected_revision === 0
+          ? await table
+              .insert({ owner_id: user.id, plan, content })
+              .select("revision")
+              .single()
+          : await table
+              .update({ plan, content })
+              .eq("owner_id", user.id)
+              .eq("revision", expected_revision)
+              .select("revision")
+              .maybeSingle();
+      if (result.error?.code === "23505" || (!result.error && !result.data)) {
+        return json(
+          {
+            error:
+              "A newer draft has been saved in another tab. Your entries are still here. Copy any changes you want to keep, then reload the latest draft.",
+            conflict: true,
+          },
+          409,
         );
+      }
       if (result.error)
         return json(
           {
@@ -225,6 +300,7 @@ export async function POST(
       return json({
         message: "Draft saved. No subscription or payment has been activated.",
         draft,
+        revision: result.data!.revision,
       });
     }
     return json({ error: "Not found." }, 404);

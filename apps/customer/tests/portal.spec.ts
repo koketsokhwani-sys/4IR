@@ -1,5 +1,10 @@
 import { test, expect } from "@playwright/test";
 const origin = "http://127.0.0.1:3100";
+test.beforeEach(async ({ request }) => {
+  await request.post("http://127.0.0.1:55431/__fixture", {
+    data: { action: "reset" },
+  });
+});
 async function signin(
   page: import("@playwright/test").Page,
   email = "one@example.test",
@@ -162,7 +167,10 @@ test("verified session, package drafts, persistence, isolation, escaping, mobile
   await other.close();
   for (const width of [375, 768, 1440]) {
     await page.setViewportSize({ width, height: 900 });
-    await page.screenshot({path:testInfo.outputPath(`onboarding-${width}.png`),fullPage:true});
+    await page.screenshot({
+      path: testInfo.outputPath(`onboarding-${width}.png`),
+      fullPage: true,
+    });
     expect(
       await page.evaluate(
         () => document.documentElement.scrollWidth <= innerWidth,

@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   fields,
   applicable,
@@ -9,7 +9,12 @@ import {
 } from "../../lib/draft";
 import { plans } from "../../../../src/lib/content";
 export function Onboarding() {
+  const discarding = useRef(false);
   const [draft, setDraft] = useState<Partial<Draft>>({ plan: "starter" });
+  const [revision, setRevision] = useState(0);
+  const [accountId, setAccountId] = useState("");
+  const [conflict, setConflict] = useState(false);
+  const [sessionExpired, setSessionExpired] = useState(false);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
@@ -31,6 +36,8 @@ export function Onboarding() {
           return;
         }
         if (data.draft) setDraft(data.draft);
+        setRevision(data.revision);
+        setAccountId(data.account_id);
       })
       .catch(() => {
         if (alive) {
@@ -47,7 +54,7 @@ export function Onboarding() {
   }, []);
   useEffect(() => {
     const warn = (e: BeforeUnloadEvent) => {
-      if (dirty) {
+      if (dirty && !discarding.current) {
         e.preventDefault();
         e.returnValue = "";
       }
@@ -74,13 +81,20 @@ export function Onboarding() {
             const r = await fetch("/api/draft", {
               method: "POST",
               headers: { "Content-Type": "application/json" },
-              body: JSON.stringify(draft),
+              body: JSON.stringify({
+                ...draft,
+                expected_revision: revision,
+                expected_account_id: accountId,
+              }),
             });
             const result = await r.json();
             setMessage(result.error || result.message);
+            setConflict(r.status === 409);
+            setSessionExpired(r.status === 401);
             if (r.ok) {
               setDirty(false);
               setDraft(result.draft);
+              setRevision(result.revision);
             }
           } catch {
             setMessage(
@@ -160,7 +174,41 @@ export function Onboarding() {
           Logo and photo uploads are not available in this foundation. Do not
           enter passwords, card details or sensitive customer information.
         </p>
-        <button disabled={busy}>{busy ? "Saving…" : "Save draft"}</button>
+        <button disabled={busy || conflict}>
+          {busy ? "Saving…" : "Save draft"}
+        </button>
+        {conflict && (
+          <button
+            type="button"
+            className="secondary"
+            onClick={() => {
+              if (
+                confirm(
+                  "Reload the latest draft? Copy any unsaved changes first; reloading will discard them.",
+                )
+              ) {
+                discarding.current = true;
+                setDirty(false);
+                location.reload();
+              }
+            }}
+          >
+            Reload latest draft
+          </button>
+        )}
+        {sessionExpired && (
+          <p>
+            Your entries remain here.{" "}
+            <a
+              href="/account?mode=signin"
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              Sign in in a new tab
+            </a>
+            , then return and save again.
+          </p>
+        )}
         <p role="status" aria-live="polite">
           {message}
         </p>
@@ -184,6 +232,7 @@ export function Onboarding() {
             const data = await r.json();
             if (r.ok) {
               setDirty(false);
+              discarding.current = true;
               location.assign(data.redirect);
             } else setMessage(data.error);
           } catch {

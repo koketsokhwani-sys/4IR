@@ -87,6 +87,43 @@ test("actual PostgreSQL RLS: own read/write only; anonymous, unverified, forged 
       "update public.onboarding_drafts set plan='business' where owner_id=$1",
       [uid(1)],
     );
+    const version = (
+      await db.query<{ revision: number }>(
+        "select revision from public.onboarding_drafts where owner_id=$1",
+        [uid(1)],
+      )
+    ).rows[0].revision;
+    assert.equal(version, 2);
+    assert.equal(
+      (
+        await db.query(
+          "update public.onboarding_drafts set plan='starter' where owner_id=$1 and revision=1 returning revision",
+          [uid(1)],
+        )
+      ).rows.length,
+      0,
+    );
+    assert.equal(
+      (
+        await db.query<{ revision: number }>(
+          "update public.onboarding_drafts set plan='starter' where owner_id=$1 and revision=2 returning revision",
+          [uid(1)],
+        )
+      ).rows[0].revision,
+      3,
+    );
+    await assert.rejects(
+      db.query(
+        "update public.onboarding_drafts set revision=1 where owner_id=$1",
+        [uid(1)],
+      ),
+    );
+    await assert.rejects(
+      db.query(
+        "insert into public.onboarding_drafts(owner_id,plan,content,revision) values ($1,'starter',$2,99)",
+        [uid(1), JSON.stringify(content)],
+      ),
+    );
     for (const n of [3, 4]) {
       await as(n);
       assert.equal(

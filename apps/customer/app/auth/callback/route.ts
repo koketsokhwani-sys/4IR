@@ -11,11 +11,22 @@ export async function GET(request: NextRequest) {
       ? "/account?mode=password"
       : "/onboarding";
   let valid = false;
-  if (code && code.length < 2048) {
+  if (
+    code &&
+    code.length < 2048 &&
+    request.nextUrl.searchParams.getAll("code").length === 1
+  ) {
     try {
       const db = await backend();
       const result = await db.auth.exchangeCodeForSession(code);
-      valid = !result.error;
+      if (!result.error) {
+        const {
+          data: { user },
+          error,
+        } = await db.auth.getUser();
+        valid = !error && !!user?.email_confirmed_at && !user.is_anonymous;
+        if (!valid) await db.auth.signOut({ scope: "local" });
+      }
     } catch {
       /* Fixed error redirect; no tokens in logs or responses. */
     }

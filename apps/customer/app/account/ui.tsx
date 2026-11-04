@@ -3,9 +3,11 @@ import { useState } from "react";
 export function AccountForm({
   mode,
   expired,
+  restricted = false,
 }: {
   mode: string;
   expired: boolean;
+  restricted?: boolean;
 }) {
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState(
@@ -23,8 +25,7 @@ export function AccountForm({
     <>
       <h1>{title}</h1>
       <p>
-        Verify your email before saving business details. No payment will be
-        taken.
+        {restricted ? "Use your approved test account. Account creation and password recovery are unavailable in this pilot. Contact the pilot owner for help." : "Verify your email before saving business details. No payment will be taken."}
       </p>
       <form
         onSubmit={async (event) => {
@@ -101,8 +102,8 @@ export function AccountForm({
       </form>
       <nav aria-label="Account options">
         <a href="/account?mode=signin">Sign in</a>
-        <a href="/account?mode=register">Create account</a>
-        <a href="/account?mode=recover">Forgot password?</a>
+        {!restricted && <a href="/account?mode=register">Create account</a>}
+        {!restricted && <a href="/account?mode=recover">Forgot password?</a>}
       </nav>
     </>
   );

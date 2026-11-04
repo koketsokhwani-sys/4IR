@@ -39,6 +39,7 @@ jobs:
       - run: npm run typecheck
       - run: npx playwright install --with-deps chromium
       - run: npm run test:browser
+      - run: npm run test:pilot
   # Owner-approved synthetic-data experiment; limited to the existing public draft.
   customer-local-supabase:
     # Standard public-repository runner only; never run this paid on a private repo.

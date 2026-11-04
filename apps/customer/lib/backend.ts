@@ -10,7 +10,7 @@ export async function backend() {
       name: "4ir-auth",
       httpOnly: true,
       sameSite: "lax",
-      secure: false,
+      secure: config.secureCookies,
       path: "/",
     },
     cookies: {
@@ -21,7 +21,7 @@ export async function backend() {
             ...options,
             httpOnly: true,
             sameSite: "lax",
-            secure: false,
+            secure: config.secureCookies,
             path: "/",
           });
       },
@@ -42,7 +42,7 @@ export async function clearLocalSession(preserveVerifier = false) {
       jar.set(name, "", {
         httpOnly: true,
         sameSite: "lax",
-        secure: false,
+        secure: process.env.PORTAL_MODE === "render-pilot",
         path: "/",
         maxAge: 0,
       });

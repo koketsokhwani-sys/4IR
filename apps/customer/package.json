@@ -7,9 +7,11 @@
     "dev": "next dev --webpack --hostname 127.0.0.1 --port 3100",
     "build": "next build --webpack",
     "start": "next start --hostname 127.0.0.1 --port 3100",
+    "start:render": "node scripts/start-render.mjs",
     "typecheck": "tsc --noEmit",
     "test": "node --experimental-strip-types --test tests/*.test.ts",
-    "test:browser": "playwright test"
+    "test:browser": "playwright test",
+    "test:pilot": "node tests/pilot-http.mjs"
   },
   "dependencies": {
     "next": "16.4.5",

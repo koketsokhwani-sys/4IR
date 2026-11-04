@@ -1,5 +1,7 @@
 # Phase 2 foundation — local only, not a launch
 
+Current preparation: owner-approved [restricted Render pilot](PHASE-2-RENDER-PILOT.md), still closed by default and not deployed. This adds a dedicated-backend pilot mode with separate perimeter access and user allowlist; historical local-only statements below describe the original foundation. Public signup, email-triggering actions and payments remain unavailable in pilot mode.
+
 Current hosted state: the parent applied the exact reviewed SQL once to dedicated 4IR project `qcxtcwvibgizqynkjtja`, recording version `20261104172304`; see [the reconciliation record](PHASE-2-HOSTED-INTEGRATION-PLAN.md). No website connection, signup activation or further hosted operation is part of repository reconciliation.
 
 Current release preparation: the canonical schema is now the versioned migration in `apps/customer/supabase/migrations/`; see [migration review and production gates](PHASE-2-READINESS.md). The chronological records below describe earlier candidate-schema and environment experiments; current CI replays the committed migration, not a generated candidate.

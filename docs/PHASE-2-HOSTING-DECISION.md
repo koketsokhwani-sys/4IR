@@ -1,5 +1,7 @@
 # Hosted portal decision: configuration remains closed
 
+Later decision: the owner approved **preparing** a Render Free pilot. [The Render pilot guide](PHASE-2-RENDER-PILOT.md) supersedes this document's undecided-runtime and unimplemented-gate status. This original assessment remains historical; no service/deployment is authorized by either document.
+
 Assessment date: 4 November 2026. This is a proposed implementation contract, not a deployment configuration. No hosted mode, launch switch, remote connection, credential or deployment command is added. The approved database foundation exists separately; that does not authorize connecting the portal or opening signup. The public Phase 1 website stays on static Cloudflare Pages.
 
 ## Decision needed

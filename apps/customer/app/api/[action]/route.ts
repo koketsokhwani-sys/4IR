@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { backend, clearLocalSession } from "../../../lib/backend";
 import { portalConfig } from "../../../lib/config";
 import { credentials, validateDraft } from "../../../lib/draft";
+import { requestAllowed, pilotUserAllowed } from "../../../lib/gate";
 export const dynamic = "force-dynamic";
 const json = (body: unknown, status = 200) =>
   NextResponse.json(body, {
@@ -12,7 +13,7 @@ function allowed(request: NextRequest, write: boolean) {
   const config = portalConfig();
   return (
     config &&
-    request.headers.get("host") === new URL(config.origin).host &&
+    requestAllowed(request.headers, config) &&
     (!write ||
       (request.headers.get("origin") === config.origin &&
         request.headers.get("content-type")?.split(";")[0] ===
@@ -41,7 +42,7 @@ export async function GET(
         },
         503,
       );
-    if (error || !user || !user.email_confirmed_at || user.is_anonymous)
+    if (error || !user || !user.email_confirmed_at || user.is_anonymous || !pilotUserAllowed(user.id))
       return json({ error: "Sign in with a verified email." }, 401);
     const result = await db
       .from("onboarding_drafts")
@@ -76,6 +77,10 @@ export async function POST(
       { error: "Registration is closed or request origin is invalid." },
       403,
     );
+  const { action } = await context.params;
+  // Pilot cannot create accounts, send recovery email or change passwords.
+  if (portalConfig()?.mode === "render-pilot" && !["signin", "signout", "draft"].includes(action))
+    return json({ error: "This action is unavailable in the restricted pilot." }, 403);
   // Read a bounded stream; Content-Length is not trusted.
   let text = "";
   const reader = request.body?.getReader();
@@ -101,7 +106,6 @@ export async function POST(
   } catch {
     return json({ error: "Invalid request." }, 400);
   }
-  const { action } = await context.params;
   try {
     const db = await backend();
     if (action === "register" || action === "signin") {
@@ -153,9 +157,11 @@ export async function POST(
       if (
         result.error ||
         !result.data.user?.email_confirmed_at ||
-        result.data.user?.is_anonymous
+        result.data.user?.is_anonymous ||
+        !pilotUserAllowed(result.data.user.id)
       ) {
-        await db.auth.signOut();
+        try { await db.auth.signOut({ scope: "local" }); }
+        finally { await clearLocalSession(); }
         return json(
           {
             error:
@@ -211,7 +217,7 @@ export async function POST(
         },
         503,
       );
-    if (error || !user || !user.email_confirmed_at || user.is_anonymous)
+    if (error || !user || !user.email_confirmed_at || user.is_anonymous || !pilotUserAllowed(user.id))
       return json({ error: "Sign in with a verified email." }, 401);
     if (action === "password") {
       if (

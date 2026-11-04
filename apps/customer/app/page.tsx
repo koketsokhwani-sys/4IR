@@ -1,3 +1,5 @@
+import { portalConfig } from "../lib/config";
+export const dynamic = "force-dynamic";
 export default function Home() {
   return (
     <main id="main">
@@ -8,7 +10,7 @@ export default function Home() {
         not open yet.
       </p>
       <a className="button" href="/account">
-        Local account preview
+        {portalConfig()?.mode === "render-pilot" ? "Pilot sign in" : "Local account preview"}
       </a>
     </main>
   );

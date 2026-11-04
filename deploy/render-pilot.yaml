@@ -1,0 +1,26 @@
+# Preparation only. Creating/syncing a Blueprint starts an initial deployment.
+# Requires separate owner approval; never connect this to Munchies.
+services:
+  - type: web
+    name: 4ir-customer-pilot
+    runtime: node
+    plan: free
+    region: frankfurt
+    repo: https://github.com/koketsokhwani-sys/4IR
+    branch: codex/phase-2-foundation
+    rootDir: apps/customer
+    buildCommand: npm ci && npm run build
+    startCommand: npm run start:render
+    autoDeployTrigger: "off"
+    healthCheckPath: /healthz
+    envVars:
+      - key: NODE_VERSION
+        value: 24.22.1
+      - key: NODE_ENV
+        value: production
+      - key: PORTAL_MODE
+        value: closed
+      - key: PORTAL_PILOT_ENABLED
+        value: "false"
+# Intentionally no key, credential, user ID, database, disk or preview binding.
+# Configure server-side values later using the reviewed setup guide.

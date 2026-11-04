@@ -2,7 +2,7 @@
 
 Status: **hosted foundation migration applied with explicit approval; portal launch is not approved**. The public Phase 1 site, closed signup and disabled payments remain unchanged. This checklist does not authorize further provisioning, credentials, external emails, hosted database changes, merging or deployment. Never use either Munchies project.
 
-Hosted configuration assessment: [runtime options and proposed gated configuration](PHASE-2-HOSTING-DECISION.md). The runtime/provider, budget, exact HTTPS origin and pilot access policy need owner decisions. Remote configuration remains rejected; tests now verify zero provider requests from closed and unsupported hosted modes even when backend settings are present.
+The owner subsequently approved preparing a Render Free pilot. See [the restricted pilot implementation and setup gates](PHASE-2-RENDER-PILOT.md). A dedicated-target `render-pilot` mode is now implemented behind explicit configuration, a shared HTTPS access gate and an account UUID allowlist. Defaults remain closed; no service or connection is created. The earlier [runtime assessment](PHASE-2-HOSTING-DECISION.md) is retained as decision history.
 
 ## Versioned migration and reproducibility
 
@@ -37,8 +37,8 @@ Residual considerations: account deletion is irreversible for the draft; email v
 | --- | --- | --- |
 | Dedicated backend | Parent verified dedicated Free London project `qcxtcwvibgizqynkjtja` in organization `pwvtrcgaxbcuhmktgapu`; approved migration applied | Keep this target separate from Munchies; approve production capacity, operational ownership and any future costs |
 | Migration | Versioned SQL plus PR replay/advisor/catalog/API checks | Parent reported successful hosted application and clean postchecks; repository filename now matches hosted history. Verify exact-head replay CI and require new reviewed migrations for later changes |
-| Hosting | Marketing stays on static Cloudflare Pages; portal is separate Node app | Choose Node hosting or validate a Workers adapter; approve costs, domains and deployment pipeline; static Pages alone cannot run this portal |
-| Release configuration | Local-only URL gate intentionally rejects remote backends | Separate reviewed production configuration, fail-closed launch flag, trusted proxy/host rules, secure cookie handling and end-to-end closed-mode test |
+| Hosting | Marketing stays on static Cloudflare Pages; Render Free pilot preparation is approved | Approve separate 4IR account/workspace, billing safeguards, region, exact service/domain and initial closed deployment; static Pages cannot run this portal |
+| Release configuration | Explicit restricted pilot gates, exact target/host, Secure cookies and local TLS tests | Verify on actual Render ingress after approval; account/key provisioning, pilot audience and rollout remain separate decisions; public signup stays off |
 | Auth and email | Real local PKCE, recovery, refresh and password-change tests | Approve sender/domain; verify delivery and redirect allowlist; review session lifetime, revocation, abuse limits, CAPTCHA and account enumeration behavior |
 | Authorization | RLS, effective grants, two-customer isolation and private-schema denial | Re-run against exact release schema/config; confirm public-key-only application access and no privileged key in browser bundles/logs |
 | Web security | Local origin/body controls, HttpOnly cookies, escaping and partial CSP | Production TLS, Secure cookies, CSRF/proxy/cache validation, complete script CSP, headers and token-free logging verified on target host |

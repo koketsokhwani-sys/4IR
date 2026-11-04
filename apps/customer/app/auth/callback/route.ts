@@ -3,7 +3,7 @@ import { backend } from "../../../lib/backend";
 import { portalConfig } from "../../../lib/config";
 export async function GET(request: NextRequest) {
   const config = portalConfig();
-  if (!config || request.headers.get("host") !== new URL(config.origin).host)
+  if (!config || config.mode === "render-pilot" || request.headers.get("host") !== new URL(config.origin).host)
     return new NextResponse("Registration is closed.", { status: 403 });
   const code = request.nextUrl.searchParams.get("code");
   const destination =

@@ -1,8 +1,7 @@
 import { headers } from "next/headers";
 import { portalConfig } from "./config";
+import { requestAllowed } from "./gate";
 export async function localAccess() {
   const config = portalConfig();
-  return (
-    !!config && (await headers()).get("host") === new URL(config.origin).host
-  );
+  return requestAllowed(await headers(), config);
 }

@@ -19,6 +19,14 @@ Commit and retain `package-lock.json`. Pages can install dependencies using npm 
 
 ## Compatibility review
 
+### Diagnosing a failed build
+
+Check the failed deployment's commit SHA and branch first. While PR #2 is a draft, `main` does not contain the static-export configuration. Test `codex/cloudflare-pages-static-export` as a preview; production can use `main` after the change is reviewed and merged.
+
+Confirm the project is **Pages**, the build command is `npm run build`, the output directory is `out`, and Node is 24. The server-oriented Next.js preset, `.next` output directory, `next export`, and a Workers deploy command do not match this project. See [Cloudflare's static Next.js guide](https://developers.cloudflare.com/pages/framework-guides/nextjs/deploy-a-static-nextjs-site/).
+
+If those settings match, capture the first failing command and its error from the deployment log, together with the commit SHA. A successful local build does not identify a remote failure without that evidence. No Cloudflare failure log or project configuration was available during the takeover checks.
+
 - **Homepage, pricing, layout and footer:** render into HTML at build time. The footer year is captured at build time; rebuild to refresh it in a new year.
 - **Portfolio examples:** `generateStaticParams` enumerates all three slugs. `dynamicParams = false` prevents runtime generation. Unknown paths use the exported `404.html`.
 - **Package selection:** server `searchParams` was incompatible with static export. The same chooser markup now runs behind a client `useSearchParams` boundary with Suspense. Existing `/get-started?plan=...` links, prices, features and switching behavior remain intact. The static fallback is the unselected chooser; selecting a package requires browser JavaScript. Missing, invalid or repeated plan values keep the chooser unselected, as before.
@@ -44,4 +52,4 @@ After a Pages preview deployment, verify all direct routes, the three portfolio 
 
 No hosting project, domain, deployment, Phase 2 account flow or payment integration is created by this change. Future server-backed phases will require a separate deployment architecture review.
 
-Validation on 4 November 2026: the production build generated `out/` successfully, including the formerly dynamic package chooser. TypeScript and the export artifact checks passed. The full dependency audit reported zero vulnerabilities. Browser hydration and Cloudflare-hosted response headers remain to be checked on a Pages preview deployment.
+Validation on 4 November 2026: the production build generated `out/` successfully, including the formerly dynamic package chooser. TypeScript and the export artifact checks passed. The full dependency audit reported zero vulnerabilities. Takeover validation also passed in local Chromium: six direct routes, all four package names/prices, missing/invalid/repeated plan parameters, client selection, browser back/forward, FAQ expansion, mobile navigation, mobile overflow checks at 390px, and unknown-route HTTP 404, with no page errors. The checks exposed mobile overflow from comparison accessibility labels and rotated hero artwork; both are now contained without changing the layout. Cloudflare-hosted routing, custom 404 content and response headers still require a Pages preview check.

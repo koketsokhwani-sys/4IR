@@ -979,6 +979,7 @@ footer {
   padding-bottom: 75px;
 }
 .compare-wrap {
+  position: relative;
   padding-top: 75px;
   overflow: auto;
 }
@@ -1173,6 +1174,9 @@ footer {
   }
 }
 @media (max-width: 800px) {
+  .hero {
+    overflow-x: clip;
+  }
   .shell {
     width: calc(100% - 40px);
   }

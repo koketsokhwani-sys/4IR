@@ -19,7 +19,8 @@ jobs:
       - run: npm run typecheck
       - run: npm run check:export
   customer-foundation:
-    runs-on: ubuntu-latest
+    # Match the supported Linux release for the pinned Playwright version.
+    runs-on: ubuntu-24.04
     permissions:
       contents: read
     defaults:

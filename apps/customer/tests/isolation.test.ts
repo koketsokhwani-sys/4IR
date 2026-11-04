@@ -13,7 +13,7 @@ test("actual PostgreSQL RLS: own read/write only; anonymous, unverified, forged 
   insert into auth.users values ('00000000-0000-0000-0000-000000000001',now(),false),('00000000-0000-0000-0000-000000000002',now(),false),('00000000-0000-0000-0000-000000000003',null,false),('00000000-0000-0000-0000-000000000004',now(),true);`);
     await db.exec(
       await readFile(
-        new URL("../supabase/migrations/20261104134459_customer_foundation.sql", import.meta.url),
+        new URL("../supabase/migrations/20261104172304_customer_foundation.sql", import.meta.url),
         "utf8",
       ),
     );

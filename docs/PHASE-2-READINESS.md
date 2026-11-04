@@ -1,10 +1,10 @@
 # 4IR customer foundation: migration review and production gates
 
-Status: **not approved for production**. The public Phase 1 site, closed signup and disabled payments remain unchanged. This checklist does not authorize provisioning, credentials, external emails, migration of a hosted database, merging or deployment. Never use either Munchies project.
+Status: **hosted foundation migration applied with explicit approval; portal launch is not approved**. The public Phase 1 site, closed signup and disabled payments remain unchanged. This checklist does not authorize further provisioning, credentials, external emails, hosted database changes, merging or deployment. Never use either Munchies project.
 
 ## Versioned migration and reproducibility
 
-Canonical source: `apps/customer/supabase/migrations/20261104134459_customer_foundation.sql`. Supabase CLI 3.0.0 generated the filename with `migration new customer_foundation`; its body promotes the previously exercised candidate schema. The standalone candidate was removed to prevent two competing schema sources. Direct execution of the trigger helper is explicitly revoked from customer roles. No seed users, credentials, billing state or signup settings are included.
+Canonical source: `apps/customer/supabase/migrations/20261104172304_customer_foundation.sql`. The SQL was originally reviewed under CLI-generated version `20261104134459`. After explicit owner approval, the parent applied those exact bytes once through the scoped 4IR connector, which recorded version `20261104172304`. The filename is reconciled to that actual history; SQL bytes are unchanged. The standalone candidate was removed to prevent two competing schema sources. Direct execution of the trigger helper is explicitly revoked from customer roles. No seed users, credentials, billing state or signup settings are included.
 
 This is an initial migration for an empty, dedicated 4IR database with Supabase-managed `auth.users`, `auth.uid()`, `anon` and `authenticated` already present. It creates one table, three private functions, three RLS policies and one trigger. Existing objects with these names deliberately cause an error rather than silently being overwritten. It is applied once through migration history, not rerun manually as an idempotent script. Once deployed, preserve its contents and add new migrations for changes.
 
@@ -33,8 +33,8 @@ Residual considerations: account deletion is irreversible for the draft; email v
 
 | Gate | Current evidence | Required decision or evidence before release |
 | --- | --- | --- |
-| Dedicated backend | Synthetic local stack only | Owner selects a dedicated 4IR project, region, plan and budget; independently verify project identity before any authorized connection |
-| Migration | Versioned SQL plus PR replay/advisor/catalog/API checks | Reviewer accepts exact migration hash; rehearse against production-equivalent staging; confirm clean baseline/history and no schema drift |
+| Dedicated backend | Parent verified dedicated Free London project `qcxtcwvibgizqynkjtja` in organization `pwvtrcgaxbcuhmktgapu`; approved migration applied | Keep this target separate from Munchies; approve production capacity, operational ownership and any future costs |
+| Migration | Versioned SQL plus PR replay/advisor/catalog/API checks | Parent reported successful hosted application and clean postchecks; repository filename now matches hosted history. Verify exact-head replay CI and require new reviewed migrations for later changes |
 | Hosting | Marketing stays on static Cloudflare Pages; portal is separate Node app | Choose Node hosting or validate a Workers adapter; approve costs, domains and deployment pipeline; static Pages alone cannot run this portal |
 | Release configuration | Local-only URL gate intentionally rejects remote backends | Separate reviewed production configuration, fail-closed launch flag, trusted proxy/host rules, secure cookie handling and end-to-end closed-mode test |
 | Auth and email | Real local PKCE, recovery, refresh and password-change tests | Approve sender/domain; verify delivery and redirect allowlist; review session lifetime, revocation, abuse limits, CAPTCHA and account enumeration behavior |

@@ -1,5 +1,7 @@
 # Phase 2 foundation — local only, not a launch
 
+Current hosted state: the parent applied the exact reviewed SQL once to dedicated 4IR project `qcxtcwvibgizqynkjtja`, recording version `20261104172304`; see [the reconciliation record](PHASE-2-HOSTED-INTEGRATION-PLAN.md). No website connection, signup activation or further hosted operation is part of repository reconciliation.
+
 Current release preparation: the canonical schema is now the versioned migration in `apps/customer/supabase/migrations/`; see [migration review and production gates](PHASE-2-READINESS.md). The chronological records below describe earlier candidate-schema and environment experiments; current CI replays the committed migration, not a generated candidate.
 
 The approved scope is customer accounts and package-specific draft onboarding. This branch starts that work in `apps/customer`, a separate Next.js server application. The root application remains the Phase 1 static export, with its existing public design, closed-registration notice and no payment integration. Do not deploy this portal or enable public registration from this PR.
@@ -157,6 +159,6 @@ The CLI-generated migration exists only within the disposable runner. A reviewed
 
 ### Versioned foundation migration
 
-The tested candidate is promoted to `supabase/migrations/20261104134459_customer_foundation.sql`, created with CLI 3.0.0 `migration new`. The duplicate candidate file was removed. CI now verifies exact committed migration history and effective permissions on initial startup and reset/replay; it does not generate or modify release migrations. `database/review-access.sql` supplies an independent catalog-based least-privilege review, and the real API scenario adds protected owner/timestamp/deletion and private-schema denial checks. Direct trigger-helper execution is explicitly revoked from authenticated customers.
+The tested candidate was initially versioned as `20261104134459` using CLI 3.0.0 `migration new`; its unchanged SQL is now stored as `supabase/migrations/20261104172304_customer_foundation.sql` to match the explicitly approved connector application. The duplicate candidate file was removed. CI now verifies exact committed migration history and effective permissions on initial startup and reset/replay; it does not generate or modify release migrations. `database/review-access.sql` supplies an independent catalog-based least-privilege review, and the real API scenario adds protected owner/timestamp/deletion and private-schema denial checks. Direct trigger-helper execution is explicitly revoked from authenticated customers.
 
 See [the readiness checklist](PHASE-2-READINESS.md) for assumptions, review findings, remaining decisions and non-destructive recovery guidance. A passing draft check does not authorize hosted application of the migration, merge, deployment or signup opening.

@@ -1,6 +1,6 @@
 // Opt-in CI experiment. Uses only a disposable local stack, never a linked project.
 import { spawnSync } from "node:child_process";
-import { mkdtempSync, writeFileSync, existsSync, rmSync } from "node:fs";
+import { mkdtempSync, readFileSync, writeFileSync, existsSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 if (process.env.GITHUB_ACTIONS !== "true" || process.env.GITHUB_REPOSITORY !== "koketsokhwani-sys/4IR") {
@@ -16,8 +16,8 @@ const network = "4ir-local-integration-ci";
 let ownsNetwork = false;
 let started = false;
 let count = 0;
-function run(command, args, { privateOutput = true, allowFailure = false, extraEnv = {} } = {}) {
-  const result = spawnSync(command, args, { env: { ...env, ...extraEnv }, encoding: "utf8", maxBuffer: 16 * 1024 * 1024, timeout: 600000 });
+function run(command, args, { privateOutput = true, allowFailure = false, extraEnv = {}, input } = {}) {
+  const result = spawnSync(command, args, { env: { ...env, ...extraEnv }, encoding: "utf8", input, maxBuffer: 16 * 1024 * 1024, timeout: 600000 });
   // Logs may contain ephemeral keys. Keep them private and never upload them.
   writeFileSync(join(temp, `step-${++count}.log`), (result.stdout ?? "") + (result.stderr ?? ""), { mode: 0o600 });
   if (!privateOutput) process.stdout.write(result.stdout ?? "");
@@ -53,7 +53,9 @@ try {
   const status = JSON.parse(cli("status", "-o", "json"));
   if (status.API_URL !== "http://127.0.0.1:56321" || typeof status.ANON_KEY !== "string" || !status.ANON_KEY) throw new Error("Unexpected local status format or endpoint; refusing to select another backend.");
   const browser = () => run("npx", ["playwright", "test", "--config", "playwright.local.config.ts"], { extraEnv: { SUPABASE_PUBLISHABLE_KEY: status.ANON_KEY } });
-  cli("db", "query", "--file", "database/foundation.sql");
+  // CLI 3.0.0 query prepares the entire file as one statement. psql handles the
+  // multi-statement schema transaction against this exact local container.
+  run("docker", ["exec", "-i", "supabase_db_4ir-local-integration", "psql", "-U", "postgres", "-d", "postgres", "-v", "ON_ERROR_STOP=1", "--single-transaction"], { input: readFileSync("database/foundation.sql", "utf8") });
   browser();
   // Fail on security warnings; do not silently suppress an advisor finding.
   cli("db", "advisors", "--type", "security", "--fail-on", "warn");

@@ -4,6 +4,8 @@ import type { Metadata } from "next";
 import { ArrowLeft, ArrowUpRight } from "lucide-react";
 import { examples, plans } from "@/lib/content";
 import { SiteArt } from "@/components/ui";
+export const dynamicParams = false;
+
 export function generateStaticParams() {
   return examples.map((e) => ({ slug: e.slug }));
 }

@@ -33,6 +33,8 @@ npm run typecheck
 npm start
 ```
 
+`npm run build` generates the static site in `out/`. `npm start` serves that directory locally on port 3000 without a Next.js server. Run `npm run check:export` to verify the deployment artifacts.
+
 Next.js generates route types during development/build; run the build before the standalone type check in a clean checkout. `npm run check` is an alias for the TypeScript check. Commit `package-lock.json` and use `npm ci` to reproduce dependencies.
 
 ## Routes
@@ -50,7 +52,7 @@ Supported plan IDs: `starter`, `business`, `booking`, `store`. Missing or unknow
 
 ## Configuration and next phases
 
-See `docs/IMPLEMENTATION.md` for scope, verification and the next-phase requirements. Phase 1 can run on a Node.js host supporting Next.js 16, without backend secrets. Deployment and domain configuration have not been performed.
+See `docs/IMPLEMENTATION.md` for scope, verification and the next-phase requirements. Phase 1 is configured for Cloudflare Pages Static HTML Export. See `docs/CLOUDFLARE-PAGES.md` for deployment settings, routing and verification. No backend secrets are required. Deployment and domain configuration have not been performed.
 
 Before Phase 2, select a Supabase development project and configure its URL, publishable key, email verification/recovery redirects and email delivery. Plan ownership-based Row Level Security and private upload access before storing customer data. No Supabase project is created by this release.
 

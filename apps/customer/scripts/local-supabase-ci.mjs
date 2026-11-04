@@ -33,7 +33,7 @@ function run(command, args, { privateOutput = true, allowFailure = false, extraE
     if (clues) console.error(clues);
     throw new Error(`Local integration step ${count} failed (${command} ${args.slice(0,3).join(" ")}); private logs were not uploaded.`);
   }
-  return result.stdout ?? "";
+  return command === "docker" && args[0] === "logs" ? (result.stdout ?? "") + (result.stderr ?? "") : result.stdout ?? "";
 }
 const cli = (...args) => run("npx", ["--yes", "--package=supabase@3.0.0", "supabase", ...args]);
 try {
@@ -77,11 +77,15 @@ try {
   console.log("Real local Supabase lifecycle and ownership checks passed before and after migration replay.");
 } catch (error) {
   if (started) {
+    try {
+      const state = JSON.parse(run("docker", ["inspect", "supabase_auth_4ir-local-integration"], { allowFailure: true }))[0].State;
+      console.error("Local Auth state:", JSON.stringify({ status: state.Status, exitCode: state.ExitCode, health: state.Health?.Status }));
+    } catch { console.error("Local Auth state unavailable."); }
     const authLog = run("docker", ["logs", "--tail", "40", "supabase_auth_4ir-local-integration"], { allowFailure: true });
     for (const line of authLog.split("\n")) {
       try {
         const entry = JSON.parse(line);
-        if (entry.level === "error") {
+        if (["error", "fatal", "panic"].includes(entry.level)) {
           const detail = String(entry.error ?? entry.msg ?? "Auth error")
             .replace(/eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+/g, "[JWT]")
             .replace(/[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+/g, "[synthetic email]");

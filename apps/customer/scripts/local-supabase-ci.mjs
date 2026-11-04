@@ -35,7 +35,7 @@ function run(command, args, { privateOutput = true, allowFailure = false, extraE
   }
   return command === "docker" && args[0] === "logs" ? (result.stdout ?? "") + (result.stderr ?? "") : result.stdout ?? "";
 }
-const cli = (...args) => run("npx", ["--yes", "--package=supabase@3.0.0", "supabase", ...args]);
+const cli = (...args) => run("npx", ["--yes", "--package=supabase@3.0.0", "supabase", "--network-id", network, ...args]);
 try {
   const driver = run("docker", ["info", "--format", "{{.Driver}}"] ).trim();
   if (driver === "vfs") throw new Error("Refusing vfs: use the standard hosted runner's copy-on-write storage.");
@@ -43,7 +43,7 @@ try {
   ownsNetwork = true;
   cli("telemetry", "disable");
   started = true;
-  cli("start", "--network-id", network, "--exclude", "realtime,storage-api,imgproxy,postgres-meta,studio,edge-runtime,logflare,vector,supavisor");
+  cli("start", "--exclude", "realtime,storage-api,imgproxy,postgres-meta,studio,edge-runtime,logflare,vector,supavisor");
   const ids = run("docker", ["ps", "-q", "--filter", `network=${network}`]).trim().split(/\s+/).filter(Boolean);
   if (!ids.length) throw new Error("No local stack containers started.");
   const containers = JSON.parse(run("docker", ["inspect", ...ids]));
@@ -63,6 +63,11 @@ try {
   cli("db", "pull", "ci_foundation", "--schema", "public,private", "--yes");
   cli("migration", "list");
   cli("db", "reset", "--no-seed", "--yes");
+  const resetDb = JSON.parse(run("docker", ["inspect", "supabase_db_4ir-local-integration"]))[0];
+  if (!resetDb.NetworkSettings.Networks[network]) throw new Error("Reset database left the isolated network.");
+  for (const bindings of Object.values(resetDb.NetworkSettings.Ports ?? {})) {
+    for (const binding of bindings ?? []) if (!["127.0.0.1", "::1"].includes(binding.HostIp)) throw new Error("Reset database published a non-loopback port.");
+  }
   // Discard Auth/REST database connections and prepared statements from before
   // reset. Only this disposable stack is restarted; no hosted service is used.
   run("docker", ["restart", "supabase_auth_4ir-local-integration", "supabase_rest_4ir-local-integration"]);

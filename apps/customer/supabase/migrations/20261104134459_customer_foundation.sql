@@ -1,6 +1,6 @@
--- Candidate schema for a dedicated LOCAL 4IR Supabase project only.
--- Not an applied/versioned migration. Test here; generate a migration with the CLI
--- after a local stack is available and advisors pass. Never run against Munchies.
+-- Initial 4IR customer foundation. Dedicated database only; never Munchies.
+-- No hosted application or signup activation is authorized by this migration.
+-- Preserve this file once applied; make subsequent changes in new migrations.
 create schema if not exists private;
 revoke all on schema private from public;
 grant usage on schema private to authenticated;
@@ -65,7 +65,7 @@ begin
   return new;
 end;
 $$;
-revoke all on function private.touch_draft() from public, anon;
+revoke all on function private.touch_draft() from public, anon, authenticated;
 create trigger touch_draft before insert or update on public.onboarding_drafts
   for each row execute function private.touch_draft();
 -- No storage bucket or policies: uploads remain unavailable, not public by default.

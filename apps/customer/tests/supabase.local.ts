@@ -54,6 +54,12 @@ test("real local confirmation, refresh, package drafts, RLS, recovery and logout
   expect((await customer.from("onboarding_drafts").update({ plan: "starter" }).eq("owner_id", initial.account_id).select()).data).toEqual([]);
   expect((await customer.from("onboarding_drafts").insert({ owner_id: initial.account_id, plan: "starter", content: (() => { const { plan, ...content } = storedDraft; return content; })() })).error?.code).toBe("42501");
   expect((await customer.from("onboarding_drafts").update({ revision: 99 }).eq("owner_id", (await customer.auth.getUser()).data.user!.id)).error?.code).toBe("42501");
+  const otherId = (await customer.auth.getUser()).data.user!.id;
+  for (const change of [{ owner_id: initial.account_id }, { updated_at: new Date().toISOString() }]) {
+    expect((await customer.from("onboarding_drafts").update(change).eq("owner_id", otherId)).error?.code).toBe("42501");
+  }
+  expect((await customer.from("onboarding_drafts").delete().eq("owner_id", otherId)).error?.code).toBe("42501");
+  expect((await customer.schema("private").rpc("is_verified_customer")).error?.code).toBe("PGRST106");
   await customer.auth.signOut();
   await other.close();
   // Force the real SSR SDK to refresh the session; no provider token is forged.

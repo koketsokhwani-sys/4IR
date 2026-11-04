@@ -1,6 +1,6 @@
 // Opt-in CI experiment. Uses only a disposable local stack, never a linked project.
 import { spawnSync } from "node:child_process";
-import { mkdtempSync, readFileSync, writeFileSync, existsSync, rmSync } from "node:fs";
+import { mkdtempSync, readFileSync, writeFileSync, existsSync, readdirSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 if (process.env.GITHUB_ACTIONS !== "true" || process.env.GITHUB_REPOSITORY !== "koketsokhwani-sys/4IR") {
@@ -53,14 +53,23 @@ try {
   const status = JSON.parse(cli("status", "-o", "json"));
   if (status.API_URL !== "http://127.0.0.1:56321" || typeof status.ANON_KEY !== "string" || !status.ANON_KEY) throw new Error("Unexpected local status format or endpoint; refusing to select another backend.");
   const browser = () => run("npx", ["playwright", "test", "--config", "playwright.local.config.ts"], { extraEnv: { SUPABASE_PUBLISHABLE_KEY: status.ANON_KEY } });
-  // CLI 3.0.0 query prepares the entire file as one statement. psql handles the
-  // multi-statement schema transaction against this exact local container.
-  run("docker", ["exec", "-i", "supabase_db_4ir-local-integration", "psql", "-U", "postgres", "-d", "postgres", "-v", "ON_ERROR_STOP=1", "--single-transaction"], { input: readFileSync("database/foundation.sql", "utf8") });
+  // Startup applies committed migrations. Verify catalog permissions separately
+  // from the authored DDL and exercise the real API, then replay the same bytes.
+  const migrationFiles = readdirSync("supabase/migrations").filter(name => name.endsWith(".sql")).sort();
+  const expectedVersions = migrationFiles.map(name => name.split("_")[0]);
+  const migrationBytes = migrationFiles.map(name => readFileSync(`supabase/migrations/${name}`, "utf8"));
+  const sql = (input) => run("docker", ["exec", "-i", "supabase_db_4ir-local-integration", "psql", "-U", "postgres", "-d", "postgres", "-v", "ON_ERROR_STOP=1", "--single-transaction", "-At"], { input });
+  const review = () => {
+    const actual = sql("select version from supabase_migrations.schema_migrations order by version;").trim().split("\n");
+    if (JSON.stringify(actual) !== JSON.stringify(expectedVersions)) throw new Error("Applied migration history differs from committed versions.");
+    sql(readFileSync("database/review-access.sql", "utf8"));
+    console.log("Committed migration history and independent privilege review passed.");
+  };
+  review();
   browser();
   console.log("Initial real-auth, ownership and onboarding scenario passed.");
   // Fail on security warnings; do not silently suppress an advisor finding.
   cli("db", "advisors", "--type", "security", "--fail-on", "warn");
-  cli("db", "pull", "ci_foundation", "--schema", "public,private", "--yes");
   cli("migration", "list");
   cli("db", "reset", "--no-seed", "--yes");
   const resetDb = JSON.parse(run("docker", ["inspect", "supabase_db_4ir-local-integration"]))[0];
@@ -77,6 +86,8 @@ try {
     if (attempt === 29) throw new Error("Local Auth did not become healthy after reset.");
     await new Promise(resolve => setTimeout(resolve, 1000));
   }
+  review();
+  if (migrationFiles.some((name, i) => readFileSync(`supabase/migrations/${name}`, "utf8") !== migrationBytes[i])) throw new Error("Migration changed during replay.");
   cli("db", "advisors", "--type", "security", "--fail-on", "warn");
   browser();
   console.log("Real local Supabase lifecycle and ownership checks passed before and after migration replay.");

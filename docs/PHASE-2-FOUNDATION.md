@@ -1,5 +1,7 @@
 # Phase 2 foundation — local only, not a launch
 
+Current release preparation: the canonical schema is now the versioned migration in `apps/customer/supabase/migrations/`; see [migration review and production gates](PHASE-2-READINESS.md). The chronological records below describe earlier candidate-schema and environment experiments; current CI replays the committed migration, not a generated candidate.
+
 The approved scope is customer accounts and package-specific draft onboarding. This branch starts that work in `apps/customer`, a separate Next.js server application. The root application remains the Phase 1 static export, with its existing public design, closed-registration notice and no payment integration. Do not deploy this portal or enable public registration from this PR.
 
 ## Architecture decision
@@ -151,3 +153,10 @@ This testing found and fixed an application defect: a rejected sign-in previousl
 Two test-environment corrections were required: apply the multi-statement candidate SQL transaction using `psql` inside the exact local database container (CLI 3.0.0 query rejected multiple statements); pass the custom Docker network to every CLI command, including reset. Omitting it recreated PostgreSQL outside Auth's network and caused DNS failures. Reset now verifies network membership and loopback bindings, restarts only the disposable Auth/REST containers, and waits for Auth health. No permission or isolation check was relaxed.
 
 The CLI-generated migration exists only within the disposable runner. A reviewed, committed release migration, production hosting/HTTPS/CSP, anti-abuse controls, real email-delivery configuration and explicit production-opening approval remain separate requirements. Accounts and payments remain closed on the live site.
+
+
+### Versioned foundation migration
+
+The tested candidate is promoted to `supabase/migrations/20261104134459_customer_foundation.sql`, created with CLI 3.0.0 `migration new`. The duplicate candidate file was removed. CI now verifies exact committed migration history and effective permissions on initial startup and reset/replay; it does not generate or modify release migrations. `database/review-access.sql` supplies an independent catalog-based least-privilege review, and the real API scenario adds protected owner/timestamp/deletion and private-schema denial checks. Direct trigger-helper execution is explicitly revoked from authenticated customers.
+
+See [the readiness checklist](PHASE-2-READINESS.md) for assumptions, review findings, remaining decisions and non-destructive recovery guidance. A passing draft check does not authorize hosted application of the migration, merge, deployment or signup opening.

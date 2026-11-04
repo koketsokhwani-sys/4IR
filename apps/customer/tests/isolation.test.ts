@@ -13,10 +13,11 @@ test("actual PostgreSQL RLS: own read/write only; anonymous, unverified, forged 
   insert into auth.users values ('00000000-0000-0000-0000-000000000001',now(),false),('00000000-0000-0000-0000-000000000002',now(),false),('00000000-0000-0000-0000-000000000003',null,false),('00000000-0000-0000-0000-000000000004',now(),true);`);
     await db.exec(
       await readFile(
-        new URL("../database/foundation.sql", import.meta.url),
+        new URL("../supabase/migrations/20261104134459_customer_foundation.sql", import.meta.url),
         "utf8",
       ),
     );
+    await db.exec(await readFile(new URL("../database/review-access.sql", import.meta.url), "utf8"));
     const uid = (n: number) => `00000000-0000-0000-0000-00000000000${n}`;
     const as = async (n: number, role = "authenticated") => {
       await db.exec("reset role");

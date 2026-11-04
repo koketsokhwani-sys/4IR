@@ -2,6 +2,8 @@
 
 Status: **hosted foundation migration applied with explicit approval; portal launch is not approved**. The public Phase 1 site, closed signup and disabled payments remain unchanged. This checklist does not authorize further provisioning, credentials, external emails, hosted database changes, merging or deployment. Never use either Munchies project.
 
+Hosted configuration assessment: [runtime options and proposed gated configuration](PHASE-2-HOSTING-DECISION.md). The runtime/provider, budget, exact HTTPS origin and pilot access policy need owner decisions. Remote configuration remains rejected; tests now verify zero provider requests from closed and unsupported hosted modes even when backend settings are present.
+
 ## Versioned migration and reproducibility
 
 Canonical source: `apps/customer/supabase/migrations/20261104172304_customer_foundation.sql`. The SQL was originally reviewed under CLI-generated version `20261104134459`. After explicit owner approval, the parent applied those exact bytes once through the scoped 4IR connector, which recorded version `20261104172304`. The filename is reconciled to that actual history; SQL bytes are unchanged. The standalone candidate was removed to prevent two competing schema sources. Direct execution of the trigger helper is explicitly revoked from customer roles. No seed users, credentials, billing state or signup settings are included.

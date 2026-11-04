@@ -8,6 +8,8 @@ The approved scope is customer accounts and package-specific draft onboarding. T
 
 ## Architecture decision
 
+See [the hosted runtime assessment](PHASE-2-HOSTING-DECISION.md) for current Node/Workers options and the proposed future configuration contract. Hosted mode is not implemented while hosting, origin and pilot decisions remain unresolved. The regression suite covers closed mode with populated backend settings and rejects an unsupported hosted mode without contacting the local fixture.
+
 Static Cloudflare Pages cannot execute the session-handling and private data endpoints required by this implementation. Keeping the marketing site on Pages and isolating the portal avoids changing its deployment contract. The portal can be built and run as a Node.js application locally. A later approved hosting decision may use a separate Node host or a separately validated Cloudflare Workers adapter; neither is configured here. There is intentionally no portal link on the public website.
 
 The portal renders the shell on the server, then loads private drafts through same-origin Route Handlers. Only those handlers use Supabase, validate identity through `auth.getUser()`, refresh cookie sessions and write cookies. Server Components do not read session cookies or private drafts, so no session-refresh Proxy is needed. This avoids browser token storage, but requires JavaScript for forms and adds an Auth round trip on private requests. Never add protected SSR components without revisiting session refresh.
@@ -51,7 +53,7 @@ npx playwright install chromium
 npm run test:browser
 ```
 
-For an installed system Chromium, use `CHROMIUM_PATH=/usr/bin/chromium npm run test:browser`. Playwright starts the production-built portal twice (local fixture mode and closed mode) plus the loopback transport fixture, and stops them afterwards. Do not run another server on ports 3100, 3101 or 55431 during tests. PGlite executes real PostgreSQL RLS and constraints in-process, with minimal simulated Supabase roles/auth tables. It is not a substitute for the Supabase stack or security advisors.
+For an installed system Chromium, use `CHROMIUM_PATH=/usr/bin/chromium npm run test:browser`. Playwright starts the production-built portal in local fixture, closed and unsupported hosted modes plus the loopback transport fixture, and stops them afterwards. Do not run another server on ports 3100, 3101, 3103 or 55431 during tests. PGlite executes real PostgreSQL RLS and constraints in-process, with minimal simulated Supabase roles/auth tables. It is not a substitute for the Supabase stack or security advisors.
 
 For later interactive local integration, copy `apps/customer/.env.example` to the ignored `.env.local`; set `PORTAL_MODE=local` only with an authorized dedicated local 4IR backend and its publishable key, email confirmations enabled, and exact callback allowlist. Run `npm run dev --prefix apps/customer`. Never enter real personal information in the fixture. The default remains closed.
 

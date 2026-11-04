@@ -8,6 +8,7 @@ const drafts = new Map(),
   codes = new Map(),
   mail = new Map();
 let sequence = 0,
+  providerRequests = 0,
   fault = "";
 const users = [
   { id: "00000000-0000-0000-0000-000000000001", email: "one@example.test" },
@@ -75,6 +76,7 @@ const server = http.createServer(async (req, res) => {
     if (data.action === "reset") {
       for (const map of [drafts, access, refresh, codes, mail]) map.clear();
       fault = "";
+      providerRequests = 0;
     }
     if (data.action === "revoke") {
       for (const [key, u] of access)
@@ -84,8 +86,10 @@ const server = http.createServer(async (req, res) => {
     }
     if (data.action === "fault") fault = data.target;
     if (data.action === "mail") return send({ url: mail.get(data.email) });
+    if (data.action === "stats") return send({ providerRequests });
     return send({ ok: true });
   }
+  providerRequests++;
   if (
     url.pathname === "/auth/v1/signup" ||
     url.pathname === "/auth/v1/recover"

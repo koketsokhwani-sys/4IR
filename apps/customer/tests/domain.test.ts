@@ -23,6 +23,21 @@ test("portal closed by default; remote backend/origin and malformed URL denied",
     assert.equal(portalConfig({ ...env, PORTAL_ORIGIN: value }), null);
   }
 });
+test("hosted settings and public launch variables cannot enable this local foundation", () => {
+  const remote = {
+    PORTAL_ORIGIN: "https://portal.example.test",
+    SUPABASE_URL: "https://qcxtcwvibgizqynkjtja.supabase.co",
+    SUPABASE_PUBLISHABLE_KEY: "sb_publishable_synthetic_not_a_real_key",
+    NEXT_PUBLIC_PORTAL_MODE: "local",
+    PORTAL_LAUNCH_ENABLED: "true",
+  };
+  for (const mode of [undefined, "", "closed", "hosted", "production", "true", "LOCAL"]) {
+    assert.equal(portalConfig({ ...env, PORTAL_MODE: mode }), null);
+    assert.equal(portalConfig({ ...remote, PORTAL_MODE: mode }), null);
+  }
+  assert.equal(portalConfig({ ...remote, PORTAL_MODE: "local" }), null);
+  assert.equal(portalConfig({ ...env, SUPABASE_PUBLISHABLE_KEY: "" }), null);
+});
 test("draft fields validated and package-only content removed", () => {
   for (const plan of planIds) {
     const d = validateDraft({

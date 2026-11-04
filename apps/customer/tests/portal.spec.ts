@@ -16,11 +16,20 @@ async function signin(
   await expect(page).toHaveURL(/onboarding/);
   await expect(page.getByLabel("Your package")).toBeVisible();
 }
-test("closed portal denies forms and all API actions without contacting backend", async ({
+for (const port of [3101, 3103])
+test(`closed or unsupported mode on ${port} denies access without provider requests`, async ({
   request,
 }) => {
-  const r = await request.get("http://127.0.0.1:3101/account");
-  expect(await r.text()).toContain("Registration isn’t open just yet.");
+  const closedOrigin = `http://127.0.0.1:${port}`;
+  for (const path of ["/account", "/onboarding"]) {
+    const r = await request.get(closedOrigin + path);
+    expect(await r.text()).toContain("Registration isn’t open just yet.");
+  }
+  for (const path of ["/api/draft", "/auth/callback?code=fake-code"]) {
+    const r = await request.get(closedOrigin + path);
+    expect(r.status()).toBe(403);
+    expect(r.headers()["set-cookie"]).toBeUndefined();
+  }
   for (const action of [
     "register",
     "signin",
@@ -31,12 +40,16 @@ test("closed portal denies forms and all API actions without contacting backend"
   ])
     expect(
       (
-        await request.post("http://127.0.0.1:3101/api/" + action, {
-          data: {},
-          headers: { Origin: "http://127.0.0.1:3101" },
+        await request.post(closedOrigin + "/api/" + action, {
+          data: { email: "one@example.test", password: "long-test-password" },
+          headers: { Origin: closedOrigin },
         })
       ).status(),
     ).toBe(403);
+  const stats = await request.post("http://127.0.0.1:55431/__fixture", {
+    data: { action: "stats" },
+  });
+  expect(await stats.json()).toEqual({ providerRequests: 0 });
 });
 test("CSRF, unauthenticated access, oversized and malformed requests fail closed", async ({
   request,
@@ -105,10 +118,15 @@ test("registration, generic recovery, rejected login, unverified login and expir
 test("verified session, package drafts, persistence, isolation, escaping, mobile layout and signout", async ({
   page,
   browser,
+  request,
 }, testInfo) => {
   const errors: string[] = [];
   page.on("pageerror", (e) => errors.push(e.message));
   await signin(page);
+  const stats = await request.post("http://127.0.0.1:55431/__fixture", {
+    data: { action: "stats" },
+  });
+  expect((await stats.json()).providerRequests).toBeGreaterThan(0);
   const cookies = await page.context().cookies();
   expect(
     cookies.some(

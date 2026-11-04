@@ -38,3 +38,7 @@ Automated build/type checks do not establish browser accessibility, visual quali
 6. **Preview/approval/marketing:** authorise previews, revisions and approval history; marketing upsell pipeline and consent-aware automation.
 
 No database migrations, Supabase resources, payment plans, webhook routes, customer accounts or hosting resources have been created. Future integration credentials must be provided through local ignored environment files or the hosting secret manager. Supabase privileged keys and Paystack secret keys must never have a `NEXT_PUBLIC_` prefix or be imported into client components.
+
+## Phase 2 foundation branch
+
+Customer account and draft-onboarding development is now authorized. The local-only, separate portal and its validation/launch limits are described in [PHASE-2-FOUNDATION.md](PHASE-2-FOUNDATION.md). This does not open public registration or change the live Phase 1 deployment.

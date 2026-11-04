@@ -1,0 +1,79 @@
+# Phase 2 foundation — local only, not a launch
+
+The approved scope is customer accounts and package-specific draft onboarding. This branch starts that work in `apps/customer`, a separate Next.js server application. The root application remains the Phase 1 static export, with its existing public design, closed-registration notice and no payment integration. Do not deploy this portal or enable public registration from this PR.
+
+## Architecture decision
+
+Static Cloudflare Pages cannot execute the session-handling and private data endpoints required by this implementation. Keeping the marketing site on Pages and isolating the portal avoids changing its deployment contract. The portal can be built and run as a Node.js application locally. A later approved hosting decision may use a separate Node host or a separately validated Cloudflare Workers adapter; neither is configured here. There is intentionally no portal link on the public website.
+
+The portal renders the shell on the server, then loads private drafts through same-origin Route Handlers. Only those handlers use Supabase, validate identity through `auth.getUser()`, refresh cookie sessions and write cookies. Server Components do not read session cookies or private drafts, so no session-refresh Proxy is needed. This avoids browser token storage, but requires JavaScript for forms and adds an Auth round trip on private requests. Never add protected SSR components without revisiting session refresh.
+
+Supabase is the intended **dedicated 4IR** Auth and PostgreSQL backend. No project was created or connected. Never use the Munchies project, its identifiers, keys, users or buckets. The current configuration accepts only loopback HTTP origins and backend URLs; remote URLs fail closed even if `PORTAL_MODE=local`. The app binds to `127.0.0.1`. This is a development guard, not a substitute for production access control: do not put a tunnel or public reverse proxy in front of the local app.
+
+## Implemented journey
+
+- Registration and sign-in forms; generic email-verification and recovery responses, fixed callback destinations using PKCE code exchange, password update and signout.
+- Verified, non-anonymous identity required for draft reads and writes; auto-confirmed signup sessions are discarded, since the backend must require email verification.
+- Four existing package names/prices reused from Phase 1. Package choice is a preference, not billing authority or subscription activation.
+- One draft per customer containing contact name/number, business name/email, description and website text. Business adds services/page content; Booking adds services, durations, prices and availability; Store adds products and delivery details. Optional content may be completed later. Name and business name are required to save.
+- Draft reload/save, pending and failure states, unsaved-change warning, package-change explanation, canonical removal of inapplicable content, and signout.
+- Logo/photo uploads deliberately unavailable. No Storage bucket or permissive policies are created. Private upload validation, quotas, malware handling, signed downloads and ownership tests remain future work.
+
+## Security boundaries
+
+All endpoints recheck the closed/local gate. Mutations require exact configured Origin and JSON, and stream reading stops at 32 KiB. Fixed callback destinations prevent open redirects. Private responses use `Cache-Control: private, no-store`. Cookie tokens are HttpOnly and SameSite=Lax; `secure:false` is only for the enforced local HTTP setup. Production would require HTTPS, Secure cookies, reviewed origins and an explicit code change to remove the local-only gate.
+
+Identity comes from Auth, never a submitted owner ID or user-editable metadata. The API rejects unexpected fields and validates lengths and package-specific data. The candidate SQL also checks shapes, lengths and allowed plans to protect direct Data API access. Row-level policies cover SELECT, INSERT and UPDATE with both ownership checks and a verified, non-anonymous account predicate. `owner_id` is the primary key and foreign key, providing indexed ownership lookups and delete cascade. No customer DELETE permission or privileged workflow/payment columns exist.
+
+The only SECURITY DEFINER function is a narrow boolean lookup in the non-exposed `private` schema. It has an empty search path, takes no identity argument, checks `auth.uid()`, has PUBLIC/anon execution revoked, and only exposes whether the caller's account is verified. This prevents granting customers access to `auth.users`. No service-role key is used by the app.
+
+Passwords and tokens are not logged or persisted by application code. The transport test fixture uses deterministic dummy sessions, is only started by Playwright, and is never imported by the application. Do not treat its authentication behavior as a production security test. Revocation/expiry behavior, multiple tabs/devices, real PKCE email links, resend limits, provider errors, abuse controls and recovery require integration tests against a dedicated local Supabase stack. Access tokens can outlive signout until expiry; do not claim immediate token revocation. No authorization decision uses user metadata.
+
+## Run the reproducible checks
+
+From the repository root, using Node 24:
+
+```sh
+npm ci
+npm run build
+npm run typecheck
+npm run check:export
+npm ci --prefix apps/customer
+npm test --prefix apps/customer
+npm run build --prefix apps/customer
+npm run typecheck --prefix apps/customer
+cd apps/customer
+npx playwright install chromium
+npm run test:browser
+```
+
+For an installed system Chromium, use `CHROMIUM_PATH=/usr/bin/chromium npm run test:browser`. Playwright starts the production-built portal twice (local fixture mode and closed mode) plus the loopback transport fixture, and stops them afterwards. Do not run another server on ports 3100, 3101 or 55431 during tests. PGlite executes real PostgreSQL RLS and constraints in-process, with minimal simulated Supabase roles/auth tables. It is not a substitute for the Supabase stack or security advisors.
+
+For later interactive local integration, copy `apps/customer/.env.example` to the ignored `.env.local`; set `PORTAL_MODE=local` only with an authorized dedicated local 4IR backend and its publishable key, email confirmations enabled, and exact callback allowlist. Run `npm run dev --prefix apps/customer`. Never enter real personal information in the fixture. The default remains closed.
+
+## Schema and remaining integration work
+
+`apps/customer/database/foundation.sql` is a tested **candidate schema**, not an applied migration. Supabase CLI 3.0.0 could not initialize because `/home/agent/.supabase` is read-only; a fallback CLI attempt also failed. No actual stack, migrations, advisors or email-provider configuration were run. Do not apply this directly to a live project. With an authorized local stack, iterate the schema, run Supabase security advisors, generate a versioned migration using the CLI, and verify migration history and reset/reapply before committing the integration.
+
+Before any production release, separately approve and verify:
+
+1. Dedicated 4IR project and runtime hosting; no shared Munchies resources. Apply a reviewed migration and rerun actual RLS/Data API tests as two users and anon.
+2. Auth email confirmation, exact callback/recovery URLs and PKCE flow; SMTP delivery, anti-enumeration behavior, rate limits/CAPTCHA, password policy, session expiry/refresh/revocation and outage tests.
+3. Privacy notice, retention/deletion/export process, final package inclusions and commercial terms. Current onboarding saves drafts only; it does not submit work for design or activate service.
+4. Private uploads and customer profile management, concurrent draft edits (currently last successful save wins), account recovery across devices and comprehensive accessibility review.
+5. Production HTTPS/cookie/CSP and cache settings, secrets setup without privileged browser keys, launch controls and an explicit approval to open registration. Payments remain a separate phase and are absent.
+
+## Sources checked
+
+- [Supabase SSR client and identity verification](https://supabase.com/docs/guides/auth/server-side/creating-a-client)
+- [Supabase row-level security](https://supabase.com/docs/guides/database/postgres/row-level-security)
+- [Supabase changelog](https://supabase.com/changelog), including the upcoming [TLS cipher deprecation](https://supabase.com/changelog/cbc-tls-ciphers-deprecated). No relevant client API breaking change was identified; the deprecated TLS ciphers do not affect this loopback test setup.
+
+## Validation recorded 4 November 2026
+
+- Phase 1 production build, TypeScript and seven-page export verification passed; its public source files and package lockfile are unchanged.
+- Portal production build and TypeScript passed.
+- Five Node tests passed, including PostgreSQL RLS/constraint checks, remote-configuration rejection and input validation.
+- Five Chromium tests passed against the application plus transport fixture: closed mode, CSRF/oversize/malformed requests, auth error/verification/recovery states, package-specific draft persistence, two-customer isolation, escaped content, HttpOnly cookies, no-store responses, save-failure retention, package-change clearing, keyboard skip link, password change/signout, and layouts at 375/768/1440px. No page errors occurred in the main onboarding journey. Mobile and desktop screenshots were inspected.
+- Full npm audits for both applications reported zero vulnerabilities. `git diff --check` passed.
+- These results do not establish real Supabase Auth/email/refresh behavior or production readiness. The integration and launch gaps above remain open.

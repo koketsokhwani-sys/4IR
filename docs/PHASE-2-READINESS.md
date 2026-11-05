@@ -6,6 +6,8 @@ The owner subsequently approved preparing a Render Free pilot. See [the restrict
 
 ## Versioned migration and reproducibility
 
+Workflow update: the parent reports the approved project-submission migration was applied once as `20261105162019`. Its canonical file is `apps/customer/supabase/migrations/20261105162019_project_submissions.sql`, byte-identical to the reviewed SQL at `5b96248`. See [workflow release record](PHASE-2-PROJECT-WORKFLOW.md) for the hash and activation boundaries. This reconciliation performs no hosted operation; do not reapply the migration.
+
 Canonical source: `apps/customer/supabase/migrations/20261104172304_customer_foundation.sql`. The SQL was originally reviewed under CLI-generated version `20261104134459`. After explicit owner approval, the parent applied those exact bytes once through the scoped 4IR connector, which recorded version `20261104172304`. The filename is reconciled to that actual history; SQL bytes are unchanged. The standalone candidate was removed to prevent two competing schema sources. Direct execution of the trigger helper is explicitly revoked from customer roles. No seed users, credentials, billing state or signup settings are included.
 
 This is an initial migration for an empty, dedicated 4IR database with Supabase-managed `auth.users`, `auth.uid()`, `anon` and `authenticated` already present. It creates one table, three private functions, three RLS policies and one trigger. Existing objects with these names deliberately cause an error rather than silently being overwritten. It is applied once through migration history, not rerun manually as an idempotent script. Once deployed, preserve its contents and add new migrations for changes.

@@ -8,7 +8,8 @@ import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createHash } from "node:crypto";
-const hostname = "4ir-pilot-test.onrender.com";
+// The actual pilot host is an inert fixture: HTTPS sockets connect only to loopback.
+const hostname = "fourir-customer-pilot.onrender.com";
 const origin = "https://" + hostname;
 const password = "synthetic-pilot-access-for-tests-only-12345";
 const authorization = "Basic " + Buffer.from("4ir-pilot:" + password).toString("base64");
@@ -75,7 +76,12 @@ try {
   }
   assert.equal((await request("/api/signin", { auth: "Basic invalid", data: {} })).status, 401);
   assert.equal((await request("/api/draft", { auth: "", headers: { "x-middleware-subrequest": "proxy:proxy:proxy:proxy:proxy" } })).status, 401);
-  assert.equal((await request("/api/draft", { host: "evil.example.test", headers: { "x-forwarded-host": hostname } })).status, 403);
+  for (const host of ["evil.example.test", "fourir-other.onrender.com", "fourir-customer-pilot-evil.onrender.com", hostname + ".evil.test", hostname + ".", hostname + ":8443", "4ir-pilot-test.onrender.com"]) {
+    assert.equal((await request("/api/draft", { host, headers: { "x-forwarded-host": hostname, "x-forwarded-proto": "https" } })).status, 403, host);
+  }
+  for (const badOrigin of ["http://" + hostname, "ftp://" + hostname, origin + ".evil.test", "https://fourir-other.onrender.com"]) {
+    assert.equal((await request("/api/signin", { data: {}, headers: { Origin: badOrigin } })).status, 403, badOrigin);
+  }
   for (const action of ["register", "recover", "password"]) assert.equal((await request("/api/" + action, { data: { email: "one@example.test", password: "long-test-password" } })).status, 403);
   assert.equal((await request("/auth/callback?code=fake")).status, 403);
   assert.deepEqual(await control({ action: "stats" }), { providerRequests: 0 });

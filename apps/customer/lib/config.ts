@@ -58,7 +58,8 @@ function renderOrigin(value: string | undefined) {
   try {
     const url = new URL(value ?? "");
     return url.protocol === "https:" &&
-      /^4ir-[a-z0-9]+(?:-[a-z0-9]+)*\.onrender\.com$/.test(url.hostname) &&
+      (url.hostname === "fourir-customer-pilot.onrender.com" ||
+        /^4ir-[a-z0-9]+(?:-[a-z0-9]+)*\.onrender\.com$/.test(url.hostname)) &&
       !url.port && !url.username && !url.password &&
       url.pathname === "/" && !url.search && !url.hash ? url : null;
   } catch { return null; }

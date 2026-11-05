@@ -6,7 +6,7 @@ import { requestAllowed } from "../lib/gate.ts";
 const password = "synthetic-pilot-access-for-tests-only-12345";
 const env = {
   PORTAL_MODE: "render-pilot", PORTAL_PILOT_ENABLED: "true",
-  PORTAL_ORIGIN: "https://4ir-pilot-test.onrender.com",
+  PORTAL_ORIGIN: "https://fourir-customer-pilot.onrender.com",
   SUPABASE_URL: "https://qcxtcwvibgizqynkjtja.supabase.co",
   SUPABASE_PUBLISHABLE_KEY: "sb_publishable_synthetic_test_key_only_12345",
   PORTAL_PILOT_ACCESS_SHA256: createHash("sha256").update(password).digest("hex"),
@@ -14,8 +14,9 @@ const env = {
 };
 test("Render pilot requires every gate and exactly the dedicated backend", () => {
   assert.equal(portalConfig(env)?.secureCookies, true);
+  assert.equal(portalConfig({ ...env, PORTAL_ORIGIN: "https://4ir-pilot-test.onrender.com" })?.secureCookies, true);
   for (const key of Object.keys(env)) assert.equal(portalConfig({ ...env, [key]: "" }), null, key);
-  for (const url of ["http://4ir-pilot-test.onrender.com", "https://munchies.onrender.com", "https://4ir-pilot-test.onrender.com.evil.test", "https://4ir-pilot-test.onrender.com/path", "https://user@4ir-pilot-test.onrender.com", "https://4ir-pilot-test.onrender.com:8443"])
+  for (const url of ["http://fourir-customer-pilot.onrender.com", "https://munchies.onrender.com", "https://fourir-other.onrender.com", "https://fourir-customer-pilot-evil.onrender.com", "https://evil-fourir-customer-pilot.onrender.com", "https://fourir-customer-pilot.onrender.com.", "ftp://fourir-customer-pilot.onrender.com", "https://fourir-customer-pilot.onrender.com?x=1", "https://fourir-customer-pilot.onrender.com#fragment", "https://fourir-customer-pilot.onrender.com.evil.test", "https://fourir-customer-pilot.onrender.com/path", "https://user@fourir-customer-pilot.onrender.com", "https://fourir-customer-pilot.onrender.com:8443"])
     assert.equal(portalConfig({ ...env, PORTAL_ORIGIN: url }), null);
   for (const url of ["https://other.supabase.co", env.SUPABASE_URL + "/", env.SUPABASE_URL + ".evil.test"])
     assert.equal(portalConfig({ ...env, SUPABASE_URL: url }), null);
@@ -27,13 +28,17 @@ test("Render pilot requires every gate and exactly the dedicated backend", () =>
 });
 test("pilot requires exact Host plus bounded Basic credential; forwarded headers grant nothing", () => {
   const config = portalConfig(env);
-  const headers = new Headers({ host: "4ir-pilot-test.onrender.com", authorization: "Basic " + Buffer.from("4ir-pilot:" + password).toString("base64") });
+  const headers = new Headers({ host: "fourir-customer-pilot.onrender.com", authorization: "Basic " + Buffer.from("4ir-pilot:" + password).toString("base64") });
   assert.equal(requestAllowed(headers, config), true);
   for (const value of ["", "Bearer anything", "Basic !!!!", "Basic " + Buffer.from("wrong:" + password).toString("base64"), "Basic " + Buffer.from("4ir-pilot:" + password + "x").toString("base64")]) {
     const bad = new Headers(headers); bad.set("authorization", value);
     assert.equal(requestAllowed(bad, config), false);
   }
-  headers.set("host", "evil.example.test");
-  headers.set("x-forwarded-host", "4ir-pilot-test.onrender.com");
-  assert.equal(requestAllowed(headers, config), false);
+  for (const host of ["evil.example.test", "fourir-other.onrender.com", "fourir-customer-pilot-evil.onrender.com", "fourir-customer-pilot.onrender.com.evil.test", "fourir-customer-pilot.onrender.com.", "fourir-customer-pilot.onrender.com:8443", "https://fourir-customer-pilot.onrender.com", "4ir-pilot-test.onrender.com"]) {
+    const spoofed = new Headers(headers);
+    spoofed.set("host", host);
+    spoofed.set("x-forwarded-host", "fourir-customer-pilot.onrender.com");
+    spoofed.set("x-forwarded-proto", "https");
+    assert.equal(requestAllowed(spoofed, config), false, host);
+  }
 });

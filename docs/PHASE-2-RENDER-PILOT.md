@@ -18,7 +18,7 @@ This shared perimeter password is not a substitute for customer authentication o
 
 Only sign-in, signout and draft read/write are available in pilot mode. Registration, password recovery, password change and callbacks are denied before constructing the provider client. The account UI always shows sign-in and omits registration/recovery links. This prevents application-triggered external emails during the pilot. The owner's later test-account preparation is a separate approved operation; no account is created by deployment or tests.
 
-Only an exact configured HTTPS hostname matching `4ir-…onrender.com` is accepted for this first pilot. Custom domains and other hosts fail closed. Host must match; X-Forwarded-Host does not grant access and X-Forwarded-Proto does not determine cookie security. Configure only `https://qcxtcwvibgizqynkjtja.supabase.co`, the dedicated 4IR Customer Portal project in organization `pwvtrcgaxbcuhmktgapu`. Another project URL or a secret/service-role/legacy JWT key is rejected; hosted mode accepts only a publishable-key format. Format validation alone cannot prove a key belongs to the intended project: the owner must verify pairing during later authorized configuration. Never use Munchies keys or user IDs.
+Only an exact configured HTTPS hostname matching `4ir-…onrender.com`, or the explicitly allowed actual pilot hostname `fourir-customer-pilot.onrender.com`, is accepted. This exception does not allow other `fourir-*` hosts. Custom domains and other hosts fail closed. Host must match; X-Forwarded-Host does not grant access and X-Forwarded-Proto does not determine cookie security. Configure only `https://qcxtcwvibgizqynkjtja.supabase.co`, the dedicated 4IR Customer Portal project in organization `pwvtrcgaxbcuhmktgapu`. Another project URL or a secret/service-role/legacy JWT key is rejected; hosted mode accepts only a publishable-key format. Format validation alone cannot prove a key belongs to the intended project: the owner must verify pairing during later authorized configuration. Never use Munchies keys or user IDs.
 
 Pilot cookies are host-only, HttpOnly, SameSite=Lax and Secure, including refresh and deletion. Auth/private responses remain private/no-store. Responses carry noindex/nofollow; indexing controls are not access control. Browser Basic credentials may remain cached after application signout: use separate/private browser sessions on trusted devices and close them when done. Rotate the shared access password or close the pilot to revoke that perimeter access. No URL-embedded credentials or passwords in chat/PRs.
 
@@ -38,7 +38,7 @@ The app gate/allowlist does **not** disable direct Supabase Auth/Data API access
 | --- | --- |
 | `PORTAL_MODE` | `render-pilot` only after rollout approval; `closed` otherwise |
 | `PORTAL_PILOT_ENABLED` | Exact `true` only after rollout approval; `false` otherwise |
-| `PORTAL_ORIGIN` | Verified exact `https://4ir-…onrender.com` origin, no path/port/credentials/query |
+| `PORTAL_ORIGIN` | Verified exact `https://fourir-customer-pilot.onrender.com` origin (legacy `4ir-…onrender.com` names also supported), no path/port/credentials/query |
 | `SUPABASE_URL` | Exact dedicated 4IR URL above |
 | `SUPABASE_PUBLISHABLE_KEY` | Publishable key belonging to that project; no service or management key |
 | `PORTAL_PILOT_ACCESS_SHA256` | Lowercase 64-character SHA-256 of the owner's unique random pilot password |

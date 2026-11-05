@@ -23,6 +23,7 @@ export default defineConfig({
       reuseExistingServer: false,
       env: {
         PORTAL_MODE: "local",
+        PORTAL_PROJECT_WORKFLOW_ENABLED: "true",
         PORTAL_ORIGIN: "http://127.0.0.1:3100",
         SUPABASE_URL: "http://127.0.0.1:55431",
         SUPABASE_PUBLISHABLE_KEY: "fixture-publishable",

@@ -1,6 +1,7 @@
 import { localAccess } from "../../lib/access";
 import { Onboarding } from "./ui";
 import { portalConfig } from "../../lib/config";
+import { projectWorkflowEnabled } from "../../lib/project-config";
 export const dynamic = "force-dynamic";
 export default async function Page() {
   if (!(await localAccess()))
@@ -17,6 +18,7 @@ export default async function Page() {
         Choose a package and save your content as a draft. You can return to
         finish later.
       </p>
+      {projectWorkflowEnabled() && <nav><a href="/dashboard">Project dashboard and submission</a></nav>}
       <Onboarding />
     </main>
   );

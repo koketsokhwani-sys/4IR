@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { backend, clearLocalSession } from "../../../lib/backend";
 import { portalConfig } from "../../../lib/config";
 import { credentials, validateDraft } from "../../../lib/draft";
+import { projectWorkflowEnabled } from "../../../lib/project-config";
+import { missingSubmissionFields } from "../../../lib/project";
 import { requestAllowed, pilotUserAllowed } from "../../../lib/gate";
 export const dynamic = "force-dynamic";
 const json = (body: unknown, status = 200) =>
@@ -27,7 +29,8 @@ export async function GET(
   if (!allowed(request, false))
     return json({ error: "Registration is closed." }, 403);
   const { action } = await context.params;
-  if (action !== "draft") return json({ error: "Not found." }, 404);
+  if (action === "project" && !projectWorkflowEnabled()) return json({ error: "Project submissions are closed." }, 403);
+  if (action !== "draft" && action !== "project") return json({ error: "Not found." }, 404);
   try {
     const db = await backend();
     const {
@@ -54,6 +57,21 @@ export async function GET(
         { error: "Your draft could not be loaded. Please try again." },
         503,
       );
+    if (action === "project") {
+      const submissions = await db.from("project_submissions")
+        .select("id,draft_revision,plan,content,status,submitted_at")
+        .eq("owner_id", user.id).order("draft_revision", { ascending: false }).limit(20);
+      if (submissions.error) return json({ error: "Project history could not be loaded. Please retry." }, 503);
+      const ids = submissions.data.map(row => row.id);
+      const events = ids.length ? await db.from("project_events")
+        .select("submission_id,event_number,status,note,created_at")
+        .eq("owner_id", user.id).in("submission_id", ids).order("event_number", { ascending: true }) : { data: [], error: null };
+      if (events.error) return json({ error: "Project history could not be loaded. Please retry." }, 503);
+      const draft = result.data ? { plan: result.data.plan, ...result.data.content } : null;
+      return json({ account_id: user.id, revision: result.data?.revision ?? 0, draft,
+        missing: draft ? missingSubmissionFields(draft) : ["Save your onboarding draft first"],
+        submissions: submissions.data, events: events.data });
+    }
     return json({
       revision: result.data?.revision ?? 0,
       account_id: user.id,
@@ -79,8 +97,9 @@ export async function POST(
     );
   const { action } = await context.params;
   // Pilot cannot create accounts, send recovery email or change passwords.
-  if (portalConfig()?.mode === "render-pilot" && !["signin", "signout", "draft"].includes(action))
+  if (portalConfig()?.mode === "render-pilot" && !["signin", "signout", "draft", "project"].includes(action))
     return json({ error: "This action is unavailable in the restricted pilot." }, 403);
+  if (action === "project" && !projectWorkflowEnabled()) return json({ error: "Project submissions are closed." }, 403);
   // Read a bounded stream; Content-Length is not trusted.
   let text = "";
   const reader = request.body?.getReader();
@@ -249,6 +268,23 @@ export async function POST(
           503,
         );
       return json({ redirect: "/account?mode=signin" });
+    }
+    if (action === "project") {
+      if (Object.keys(input).some(key => !["expected_revision", "expected_account_id"].includes(key)) ||
+          !Number.isSafeInteger(input.expected_revision) || (input.expected_revision as number) < 1 ||
+          (input.expected_revision as number) >= 2147483647)
+        return json({ error: "Reload the dashboard before submitting your saved draft." }, 400);
+      if (input.expected_account_id !== user.id)
+        return json({ error: "Your signed-in account changed. Reload the dashboard before submitting.", conflict: true }, 409);
+      // Database trigger locks the saved revision, validates completion and copies the immutable snapshot.
+      const result = await db.from("project_submissions").insert({ owner_id: user.id, draft_revision: input.expected_revision })
+        .select("id").single();
+      if (["40001", "23505"].includes(result.error?.code ?? ""))
+        return json({ error: "The draft or review status changed, or this revision was already submitted. Reload the dashboard.", conflict: true }, 409);
+      if (result.error?.code === "23514")
+        return json({ error: "Complete the submission checklist and save your draft before submitting." }, 400);
+      if (result.error) return json({ error: "Submission could not be confirmed. Reload the dashboard before retrying." }, 503);
+      return json({ message: "Submitted for review. No payment, subscription or launch has been approved.", id: result.data!.id });
     }
     if (action === "draft") {
       const { expected_revision, expected_account_id, ...values } = input;

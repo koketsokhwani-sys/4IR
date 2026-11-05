@@ -63,6 +63,7 @@ try {
     const actual = sql("select version from supabase_migrations.schema_migrations order by version;").trim().split("\n");
     if (JSON.stringify(actual) !== JSON.stringify(expectedVersions)) throw new Error("Applied migration history differs from committed versions.");
     sql(readFileSync("database/review-access.sql", "utf8"));
+    sql(readFileSync("database/review-project-access.sql", "utf8"));
     console.log("Committed migration history and independent privilege review passed.");
   };
   review();

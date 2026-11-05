@@ -39,10 +39,25 @@ test("real local confirmation, refresh, package drafts, RLS, recovery and logout
     expect(stored.draft.plan).toBe(plan);
     expect(stored.revision).toBe(revision);
   }
+  // Complete the saved store draft, then race explicit submissions against real PostgREST.
+  const completed = { ...(await (await page.request.get("/api/draft")).json()).draft, phone: "123", description: "Synthetic shop", website_content: "Homepage", expected_revision: revision, expected_account_id: initial.account_id };
+  const completedSave = await page.request.post("/api/draft", { headers, data: completed });
+  expect(completedSave.status()).toBe(200);
+  revision = (await completedSave.json()).revision;
+  const submissionBody = { expected_revision: revision, expected_account_id: initial.account_id };
+  const attempts = await Promise.all([page.request.post("/api/project", { headers, data: submissionBody }), page.request.post("/api/project", { headers, data: submissionBody })]);
+  expect(attempts.map(r => r.status()).sort()).toEqual([200,409]);
+  const project = await (await page.request.get("/api/project")).json();
+  expect(project.submissions).toHaveLength(1); expect(project.events).toHaveLength(1);
+  expect(project.submissions[0].status).toBe("submitted");
+  await page.goto("/dashboard");
+  await expect(page.getByRole("heading", { name: "Submitted for review", exact: true })).toBeVisible();
   const storedDraft = (await (await page.request.get("/api/draft")).json()).draft;
   const key = process.env.SUPABASE_PUBLISHABLE_KEY!;
   const anon = createClient(api, key, { auth: { persistSession: false } });
   expect((await anon.from("onboarding_drafts").select()).error?.code).toBe("42501");
+  expect((await anon.from("project_submissions").select()).error?.code).toBe("42501");
+  expect((await anon.from("project_events").select("note")).error?.code).toBe("42501");
   const other = await browser.newContext({ baseURL: origin });
   const otherPage = await other.newPage();
   const otherEmail = `other-${Date.now()}@example.test`;
@@ -60,6 +75,12 @@ test("real local confirmation, refresh, package drafts, RLS, recovery and logout
   }
   expect((await customer.from("onboarding_drafts").delete().eq("owner_id", otherId)).error?.code).toBe("42501");
   expect((await customer.schema("private").rpc("is_verified_customer")).error?.code).toBe("PGRST106");
+  expect((await customer.from("project_submissions").select()).data).toEqual([]);
+  expect((await customer.from("project_events").select("note")).data).toEqual([]);
+  expect((await customer.from("project_submissions").insert({owner_id:initial.account_id,draft_revision:revision})).error?.code).toBe("42501");
+  expect((await customer.from("project_submissions").update({status:"ready_for_planning"}).eq("owner_id",initial.account_id)).error?.code).toBe("42501");
+  expect((await customer.from("project_events").insert({submission_id:project.submissions[0].id,owner_id:otherId,event_number:2,status:"ready_for_planning",note:"Forged"})).error?.code).toBe("42501");
+  expect((await customer.schema("private").rpc("review_submission",{target:project.submissions[0].id,outcome:"ready_for_planning",customer_note:"Forged"})).error?.code).toBe("PGRST106");
   await customer.auth.signOut();
   await other.close();
   // Force the real SSR SDK to refresh the session; no provider token is forged.
@@ -81,6 +102,6 @@ test("real local confirmation, refresh, package drafts, RLS, recovery and logout
   expect((await page.request.get("/api/draft")).status()).toBe(401);
   expect((await page.request.post("/api/signin", { headers, data: { email, password } })).status()).toBe(401);
   expect((await page.request.post("/api/signin", { headers, data: { email, password: newPassword } })).status()).toBe(200);
-  expect((await (await page.request.get("/api/draft")).json()).revision).toBe(4);
+  expect((await (await page.request.get("/api/draft")).json()).revision).toBe(revision);
   await page.request.post("/api/signout", { headers, data: {} });
 });

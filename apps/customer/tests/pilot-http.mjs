@@ -82,6 +82,8 @@ try {
   for (const badOrigin of ["http://" + hostname, "ftp://" + hostname, origin + ".evil.test", "https://fourir-other.onrender.com"]) {
     assert.equal((await request("/api/signin", { data: {}, headers: { Origin: badOrigin } })).status, 403, badOrigin);
   }
+  assert.equal((await request("/api/project")).status, 403);
+  assert.equal((await request("/api/project", { data: {} })).status, 403);
   for (const action of ["register", "recover", "password"]) assert.equal((await request("/api/" + action, { data: { email: "one@example.test", password: "long-test-password" } })).status, 403);
   assert.equal((await request("/auth/callback?code=fake")).status, 403);
   assert.deepEqual(await control({ action: "stats" }), { providerRequests: 0 });

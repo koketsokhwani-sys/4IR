@@ -1,4 +1,5 @@
 "use client";
+import { usePrivateHistory, PrivateHistoryNotice } from "../../lib/use-private-history";
 import { useEffect, useState } from "react";
 import { fields, applicable, type Draft, type Field } from "../../lib/draft";
 import { projectStatus, type ProjectSubmission, type ProjectEvent } from "../../lib/project";
@@ -8,6 +9,7 @@ function Snapshot({ draft }: { draft: Draft }) {
     <div key={key}><dt>{fields[key].label}</dt><dd style={{ whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}>{draft[key] || "Not supplied"}</dd></div>)}</dl>;
 }
 export function Dashboard() {
+  const { restoring, restoringRef } = usePrivateHistory();
   const [state,setState] = useState<State | null>(null);
   const [busy,setBusy] = useState(false);
   const [loaded,setLoaded] = useState(false);
@@ -26,6 +28,7 @@ export function Dashboard() {
     finally { setLoaded(true); setBusy(false); }
   }
   useEffect(() => { void load(); }, []);
+  if (restoring) return <PrivateHistoryNotice />;
   const latest = state?.submissions[0];
   const canSubmit = !!state?.draft && !state.missing.length && (!latest || (latest.status === "changes_requested" && state.revision > latest.draft_revision));
   return <>
@@ -40,7 +43,7 @@ export function Dashboard() {
       {state.draft && <details><summary>Review saved information</summary><Snapshot draft={state.draft} /></details>}
       {!!state.missing.length && <><p>Before you can submit:</p><ul>{state.missing.map(item => <li key={item}>{item}</li>)}</ul></>}
       {canSubmit && <form onSubmit={async e => {
-        e.preventDefault(); if (!confirmed || busy) return; setBusy(true); setFailed(false); setMessage("");
+        e.preventDefault(); if (restoringRef.current || !confirmed || busy) return; setBusy(true); setFailed(false); setMessage("");
         try {
           const response = await fetch("/api/project", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ expected_revision: state.revision, expected_account_id: state.account_id }) });
           const data = await response.json();

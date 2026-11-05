@@ -32,6 +32,16 @@ test("Postgres submissions: immutable snapshot, strict owner grants, completion,
       assert.equal(await check(incomplete),chosen === "starter");
       const { plan: _, ...complete } = validateDraft({...incomplete,plan:chosen,services:"Advice",availability:"Monday",products:"Tea",delivery:"Collect"});
       assert.equal(await check(complete),true);
+      const required = ["contact_name", "business_name", "description", "website_content", "phone"];
+      if (["business", "booking"].includes(chosen)) required.push("services");
+      if (chosen === "booking") required.push("availability");
+      if (chosen === "store") required.push("products", "delivery");
+      for (const field of required) {
+        assert.equal(await check({ ...complete, [field]: "\t\n" }), false, `${chosen}: ${field}`);
+      }
+      assert.equal(await check({ ...complete, phone: "", contact_email: "public@example.test" }), true);
+      assert.equal(await check({ ...complete, phone: "", contact_email: "invalid" }), false);
+
     }
     await as(1);
     await db.query("insert into public.onboarding_drafts(owner_id,plan,content) values ($1,$2,$3)",[uid(1),plan,content]);

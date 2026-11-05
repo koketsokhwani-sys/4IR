@@ -1,4 +1,5 @@
 "use client";
+import { usePrivateHistory, PrivateHistoryNotice } from "../../lib/use-private-history";
 import { useEffect, useRef, useState } from "react";
 import {
   fields,
@@ -9,6 +10,7 @@ import {
 } from "../../lib/draft";
 import { plans } from "../../../../src/lib/content";
 export function Onboarding() {
+  const { restoring, restoringRef } = usePrivateHistory();
   const discarding = useRef(false);
   const [draft, setDraft] = useState<Partial<Draft>>({ plan: "starter" });
   const [revision, setRevision] = useState(0);
@@ -54,7 +56,7 @@ export function Onboarding() {
   }, []);
   useEffect(() => {
     const warn = (e: BeforeUnloadEvent) => {
-      if (dirty && !discarding.current) {
+      if (dirty && !discarding.current && !restoringRef.current) {
         e.preventDefault();
         e.returnValue = "";
       }
@@ -62,6 +64,7 @@ export function Onboarding() {
     window.addEventListener("beforeunload", warn);
     return () => window.removeEventListener("beforeunload", warn);
   }, [dirty]);
+  if (restoring) return <PrivateHistoryNotice />;
   if (loading) return <p role="status">Loading your draft…</p>;
   if (failed)
     return (
@@ -75,6 +78,7 @@ export function Onboarding() {
       <form
         onSubmit={async (e) => {
           e.preventDefault();
+          if (restoringRef.current) return;
           setBusy(true);
           setMessage("");
           try {
@@ -220,6 +224,7 @@ export function Onboarding() {
         className="secondary"
         disabled={busy}
         onClick={async () => {
+          if (restoringRef.current) return;
           if (dirty && !confirm("Sign out and discard unsaved changes?"))
             return;
           setBusy(true);

@@ -81,6 +81,20 @@ test("real local confirmation, refresh, package drafts, RLS, recovery and logout
   expect((await customer.from("project_submissions").update({status:"ready_for_planning"}).eq("owner_id",initial.account_id)).error?.code).toBe("42501");
   expect((await customer.from("project_events").insert({submission_id:project.submissions[0].id,owner_id:otherId,event_number:2,status:"ready_for_planning",note:"Forged"})).error?.code).toBe("42501");
   expect((await customer.schema("private").rpc("review_submission",{target:project.submissions[0].id,outcome:"ready_for_planning",customer_note:"Forged"})).error?.code).toBe("PGRST106");
+  // Direct Data API writes bypass application trimming: legacy whitespace-only
+  // names can be saved, but the database must reject their submission atomically.
+  const { plan: submittedPlan, ...submittedContent } = storedDraft;
+  expect((await customer.from("onboarding_drafts").insert({owner_id:otherId,plan:submittedPlan,content:submittedContent})).error).toBeNull();
+  for (const field of ["contact_name", "business_name"]) {
+    for (const whitespace of ["\t", " \t\r\n ", "\u00a0\ufeff"]) {
+      const saved = await customer.from("onboarding_drafts").update({content:{...submittedContent,[field]:whitespace}}).eq("owner_id",otherId).select("revision").single();
+      expect(saved.error).toBeNull();
+      const rejected = await customer.from("project_submissions").insert({owner_id:otherId,draft_revision:saved.data!.revision});
+      expect(rejected.error?.code).toBe("23514");
+      expect((await customer.from("project_submissions").select("id")).data).toEqual([]);
+      expect((await customer.from("project_events").select("note")).data).toEqual([]);
+    }
+  }
   await customer.auth.signOut();
   await other.close();
   // Force the real SSR SDK to refresh the session; no provider token is forged.

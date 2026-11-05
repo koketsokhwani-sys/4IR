@@ -3,12 +3,16 @@
 create function private.submission_complete(value jsonb, chosen_plan text) returns boolean
 language sql immutable security invoker set search_path = '' as $$
   select private.valid_draft_content(value, chosen_plan) is true
-    and length(btrim(value->>'description', E' \t\n\r')) > 0
-    and length(btrim(value->>'website_content', E' \t\n\r')) > 0
-    and (length(btrim(value->>'phone', E' \t\n\r')) > 0 or length(btrim(value->>'contact_email', E' \t\n\r')) > 0)
-    and (chosen_plan not in ('business','booking') or length(btrim(value->>'services', E' \t\n\r')) > 0)
-    and (chosen_plan <> 'booking' or length(btrim(value->>'availability', E' \t\n\r')) > 0)
-    and (chosen_plan <> 'store' or (length(btrim(value->>'products', E' \t\n\r')) > 0 and length(btrim(value->>'delivery', E' \t\n\r')) > 0));
+    and length(btrim(value->>'contact_name', whitespace.chars)) > 0
+    and length(btrim(value->>'business_name', whitespace.chars)) > 0
+    and length(btrim(value->>'description', whitespace.chars)) > 0
+    and length(btrim(value->>'website_content', whitespace.chars)) > 0
+    and (length(btrim(value->>'phone', whitespace.chars)) > 0 or length(btrim(value->>'contact_email', whitespace.chars)) > 0)
+    and (chosen_plan not in ('business','booking') or length(btrim(value->>'services', whitespace.chars)) > 0)
+    and (chosen_plan <> 'booking' or length(btrim(value->>'availability', whitespace.chars)) > 0)
+    and (chosen_plan <> 'store' or (length(btrim(value->>'products', whitespace.chars)) > 0 and length(btrim(value->>'delivery', whitespace.chars)) > 0))
+  -- ECMAScript String.trim whitespace/line terminators, independent of DB locale.
+  from (select U&'\0009\000A\000B\000C\000D\0020\00A0\1680\2000\2001\2002\2003\2004\2005\2006\2007\2008\2009\200A\2028\2029\202F\205F\3000\FEFF' as chars) as whitespace;
 $$;
 revoke all on function private.submission_complete(jsonb,text) from public, anon, authenticated;
 

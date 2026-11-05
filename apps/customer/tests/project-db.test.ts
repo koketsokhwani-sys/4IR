@@ -81,3 +81,55 @@ test("Postgres submissions: immutable snapshot, strict owner grants, completion,
     assert.equal((await db.query("select note from public.project_events")).rows.length,4);
   } finally { await db.close(); }
 });
+
+test("populated foundation upgrade preserves drafts and direct submissions reject whitespace-only names", async () => {
+  const db = new PGlite();
+  try {
+    await db.exec(`create role anon; create role authenticated; create role service_role; create schema auth;
+      create table auth.users(id uuid primary key,email_confirmed_at timestamptz,is_anonymous boolean default false);
+      create function auth.uid() returns uuid language sql stable as $$ select nullif(current_setting('request.jwt.claim.sub',true),'')::uuid $$;
+      grant usage on schema auth,public to authenticated,anon; grant execute on function auth.uid() to authenticated,anon;
+      insert into auth.users values ('${uid(1)}',now(),false),('${uid(2)}',now(),false);`);
+    const dir = new URL("../supabase/migrations/", import.meta.url);
+    const migrations = (await readdir(dir)).filter(n => n.endsWith(".sql")).sort();
+    assert.equal(migrations[0], "20261104172304_customer_foundation.sql");
+    await db.exec(await readFile(new URL(migrations[0], dir), "utf8"));
+    const { plan, ...content } = validateDraft({ plan: "starter", contact_name: "Existing customer", business_name: "Existing business", phone: "123", description: "About", website_content: "Home" });
+    await db.query("insert into public.onboarding_drafts(owner_id,plan,content) values ($1,$2,$3)", [uid(1), plan, content]);
+    await db.query("update public.onboarding_drafts set content=$1 where owner_id=$2", [{ ...content, description: "Saved before upgrade" }, uid(1)]);
+    const before = (await db.query("select * from public.onboarding_drafts order by owner_id")).rows;
+    assert.equal((before[0] as {revision:number}).revision, 2);
+    for (const name of migrations.slice(1)) await db.exec(await readFile(new URL(name, dir), "utf8"));
+    assert.deepEqual((await db.query("select * from public.onboarding_drafts order by owner_id")).rows, before);
+    assert.equal((await db.query("select id from public.project_submissions")).rows.length, 0);
+    assert.equal((await db.query("select submission_id from public.project_events")).rows.length, 0);
+    for (const file of ["review-access.sql", "review-project-access.sql"])
+      await db.exec(await readFile(new URL("../database/" + file, import.meta.url), "utf8"));
+    await db.query("select set_config('request.jwt.claim.sub',$1,false)", [uid(1)]);
+    await db.exec("set role authenticated");
+    await db.query("insert into public.project_submissions(owner_id,draft_revision) values ($1,2)", [uid(1)]);
+    assert.deepEqual((await db.query("select * from public.onboarding_drafts order by owner_id")).rows, before);
+    // Bypass all UI/API trimming: these legacy draft values pass the foundation's
+    // space-only name constraint, but must never pass submission validation.
+    await db.exec("reset role");
+    await db.query("select set_config('request.jwt.claim.sub',$1,false)", [uid(2)]);
+    await db.exec("set role authenticated");
+    await db.query("insert into public.onboarding_drafts(owner_id,plan,content) values ($1,$2,$3)", [uid(2), plan, content]);
+    const whitespace = ["\t", "\n", " \t\r\n ", "\v", "\f", "\u00a0", "\u1680", "\u2000", "\u2001", "\u2002", "\u2003", "\u2004", "\u2005", "\u2006", "\u2007", "\u2008", "\u2009", "\u200a", "\u2028", "\u2029", "\u202f", "\u205f", "\u3000", "\ufeff"];
+    for (const field of ["contact_name", "business_name"] as const) {
+      for (const value of whitespace) {
+        assert.equal(value.trim(), "");
+        const changed = { ...content, [field]: value };
+        assert.ok(missingSubmissionFields({ plan, ...changed }).includes(field === "contact_name" ? "Your name" : "Business name"));
+        const row = await db.query<{revision:number}>("update public.onboarding_drafts set content=$1 where owner_id=$2 returning revision", [changed, uid(2)]);
+        await assert.rejects(db.query("insert into public.project_submissions(owner_id,draft_revision) values ($1,$2)", [uid(2), row.rows[0].revision]), { code: "23514" }, `${field}: ${JSON.stringify(value)}`);
+        assert.equal((await db.query("select id from public.project_submissions")).rows.length, 0);
+        assert.equal((await db.query("select note from public.project_events")).rows.length, 0);
+      }
+    }
+    // Nonblank names with surrounding whitespace remain valid.
+    const row = await db.query<{revision:number}>("update public.onboarding_drafts set content=$1 where owner_id=$2 returning revision", [{ ...content, contact_name: "\tName\n", business_name: "\u00a0Business\ufeff" }, uid(2)]);
+    await db.query("insert into public.project_submissions(owner_id,draft_revision) values ($1,$2)", [uid(2), row.rows[0].revision]);
+    assert.equal((await db.query("select id from public.project_submissions")).rows.length, 1);
+  } finally { await db.close(); }
+});

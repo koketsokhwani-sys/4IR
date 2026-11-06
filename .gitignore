@@ -6,3 +6,8 @@ out/
 *.tsbuildinfo
 work/
 .DS_Store
+test-results/
+playwright-report/
+.supabase/
+supabase/.temp/
+supabase/.branches/

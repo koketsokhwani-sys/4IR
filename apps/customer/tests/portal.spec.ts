@@ -51,6 +51,52 @@ test(`closed or unsupported mode on ${port} denies access without provider reque
   });
   expect(await stats.json()).toEqual({ providerRequests: 0 });
 });
+for (const port of [3101, 3103])
+test(`existing customer session cannot bypass closed access on ${port}`, async ({ request }) => {
+  const closedOrigin = `http://127.0.0.1:${port}`;
+  // Establish a real fixture session first; localhost cookies are shared across
+  // ports, so these requests carry the same valid customer cookie to the gate.
+  expect((await request.post(origin + "/api/signin", {
+    headers: { Origin: origin },
+    data: { email: "one@example.test", password: "long-test-password" },
+  })).status()).toBe(200);
+  expect((await request.get(origin + "/api/draft")).status()).toBe(200);
+  expect((await request.storageState()).cookies.some(cookie => cookie.name === "4ir-auth")).toBe(true);
+  const stats = async () => (await (await request.post("http://127.0.0.1:55431/__fixture", {
+    data: { action: "stats" },
+  })).json()).providerRequests;
+  const before = await stats();
+  const cookiesBefore = (await request.storageState()).cookies;
+  for (const action of ["draft", "project", "checkout", "payment", "subscribe"]) {
+    for (const method of ["GET", "POST"]) {
+      const response = await request.fetch(`${closedOrigin}/api/${action}`, {
+        method,
+        maxRedirects: 0,
+        headers: { Origin: closedOrigin },
+        ...(method === "POST" ? { data: {} } : {}),
+      });
+      expect(response.status()).toBe(403);
+      expect(response.headers()["cache-control"]).toContain("private");
+      expect(response.headers()["cache-control"]).toContain("no-store");
+      expect(response.headers()["set-cookie"]).toBeUndefined();
+      expect(response.headers().location).toBeUndefined();
+      expect((await request.storageState()).cookies).toEqual(cookiesBefore);
+    }
+  }
+  const dashboard = await request.get(closedOrigin + "/dashboard", { maxRedirects: 0 });
+  expect(dashboard.status()).toBe(200);
+  expect(dashboard.headers()["cache-control"]).toContain("private");
+  expect(dashboard.headers()["cache-control"]).toContain("no-store");
+  expect(dashboard.headers()["set-cookie"]).toBeUndefined();
+  expect(dashboard.headers().location).toBeUndefined();
+  expect(await dashboard.text()).toContain("Project submissions are closed.");
+  expect(await dashboard.text()).not.toContain("Submit saved draft for review");
+  expect(await stats()).toBe(before);
+  expect((await request.storageState()).cookies).toEqual(cookiesBefore);
+  // Gate rejection must not invalidate the session in the still-open local app.
+  expect((await request.get(origin + "/api/draft")).status()).toBe(200);
+});
+
 test("CSRF, unauthenticated access, oversized and malformed requests fail closed", async ({
   request,
 }) => {

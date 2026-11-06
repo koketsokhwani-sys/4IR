@@ -98,6 +98,21 @@ try {
   const signed = await request("/api/signin", { data: { email: "one@example.test", password: "long-test-password" } });
   assert.equal(signed.status, 200); privateResponse(signed); secureCookies(signed);
   let cookie = cookies(signed);
+  // Even an allowlisted, authenticated customer behind the shared gate has no
+  // payment capability. Rejections must not call Auth/database or redirect.
+  const beforePayment = await control({ action: "stats" });
+  for (const action of ["checkout", "payment", "subscribe"]) {
+    const deniedPayment = await request("/api/" + action, { cookie, data: {} });
+    assert.equal(deniedPayment.status, 403); privateResponse(deniedPayment);
+    assert.equal(deniedPayment.headers.location, undefined);
+    assert.equal(deniedPayment.headers["set-cookie"], undefined);
+    const missingPayment = await request("/api/" + action, { cookie });
+    assert.equal(missingPayment.status, 404); privateResponse(missingPayment);
+    assert.equal(missingPayment.headers.location, undefined);
+    assert.equal(missingPayment.headers["set-cookie"], undefined);
+  }
+  assert.deepEqual(await control({ action: "stats" }), beforePayment);
+  console.log("Authenticated pilot payment actions denied without provider calls or redirects.");
   const draft = await request("/api/draft", { cookie }); assert.equal(draft.status, 200); privateResponse(draft);
   const state = JSON.parse(draft.text);
   const saved = await request("/api/draft", { cookie, data: { expected_account_id: state.account_id, expected_revision: 0, plan: "starter", contact_name: "Synthetic Test", business_name: "Pilot test only" } });

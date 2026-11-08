@@ -106,6 +106,53 @@ for (const [index,flag] of ["absent","false","invalid"].entries()) test(`workflo
     expect(await stats()).toBe(before);
   } finally {await context.close();}
 });
+test("successful submission survives reload and dashboard return without resubmitting",async ({page})=>{
+  await seed(page); await page.goto("/dashboard");
+  let submissions=0;
+  page.on("request",request=>{if(new URL(request.url()).pathname==="/api/project" && request.method()==="POST")submissions++;});
+  await page.getByLabel("I have reviewed").check();
+  await page.getByRole("button",{name:"Submit saved draft for review"}).click();
+  await expect(page.getByRole("heading",{name:"Submitted for review",exact:true})).toBeVisible();
+  const before=await (await page.request.get("/api/project")).json();
+  expect(before.submissions).toHaveLength(1); expect(before.events).toHaveLength(1);
+  for(const returnToDashboard of [false,true]){
+    if(returnToDashboard){await page.goto("/onboarding");await expect(page.locator('[name="business_name"]')).toHaveValue(complete.business_name);await page.getByRole("link",{name:"Project dashboard and submission"}).click();}
+    else await page.reload();
+    await expect(page.getByRole("heading",{name:"Submitted for review",exact:true})).toBeVisible();
+    await expect(page.getByRole("button",{name:"Submit saved draft for review"})).toHaveCount(0);
+    await expect(page.getByLabel("I have reviewed")).toHaveCount(0);
+    expect(await (await page.request.get("/api/project")).json()).toEqual(before);
+    expect(submissions).toBe(1);
+  }
+});
+test("closing workflow access preserves an existing draft, snapshot and history",async ({page})=>{
+  const account=await seed(page);
+  expect((await page.request.post("/api/project",{headers,data:{expected_revision:1,expected_account_id:account}})).status()).toBe(200);
+  const before=await (await page.request.get("/api/project")).json();
+  expect(before.submissions).toHaveLength(1); expect(before.events).toHaveLength(1);
+  for(const port of [3105,3106,3107]){
+    const origin=`http://127.0.0.1:${port}`;
+    // The same valid cookie and provider state reach each feature-off process.
+    const draft=await page.request.get(origin+"/api/draft");
+    expect(draft.status()).toBe(200);
+    expect(await draft.json()).toMatchObject({account_id:account,revision:1,draft:before.draft});
+    const stats=async()=> (await (await page.request.post(fixture,{data:{action:"stats"}})).json()).providerRequests;
+    const calls=await stats();
+    for(const method of ["GET","POST"]){
+      const response=await page.request.fetch(origin+"/api/project",{method,maxRedirects:0,headers:{Origin:origin},
+        ...(method==="POST"?{data:{expected_revision:1,expected_account_id:account}}:{})});
+      expect(response.status()).toBe(403);
+      expect(response.headers()["cache-control"]).toContain("private");
+      expect(response.headers()["cache-control"]).toContain("no-store");
+      expect(response.headers()["set-cookie"]).toBeUndefined();
+      expect(response.headers().location).toBeUndefined();
+    }
+    expect(await stats()).toBe(calls);
+    // Re-entering the enabled process exposes exactly the original stored state;
+    // closing access must not delete data or replay the submission.
+    expect(await (await page.request.get("/api/project")).json()).toEqual(before);
+  }
+});
 test("Back after sign-out and account switch rechecks identity without exposing the previous draft",async ({page})=>{
   await seed(page); await page.goto("/dashboard");
   await expect(page.getByRole("heading",{name:"Saved draft · revision 1"})).toBeVisible();

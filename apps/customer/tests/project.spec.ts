@@ -56,15 +56,26 @@ test("uncertain submission response requires refresh and never replays the actio
   await page.request.post("/api/draft",{headers,data:{plan:"starter",contact_name:"Test",business_name:"Business",phone:"123",description:"About",website_content:"Home",expected_revision:0,expected_account_id:initial.account_id}});
   await page.goto("/dashboard");
   await page.getByLabel("I have reviewed").check();
+  let submissionRequests=0;
+  page.on("request",request=>{if(new URL(request.url()).pathname==="/api/project" && request.method()==="POST")submissionRequests++;});
   await page.route("**/api/project",async route => {
-    if (route.request().method() === "POST") { await route.fetch(); await route.abort(); }
+    if (route.request().method() === "POST") { const committed=await route.fetch(); expect(committed.status()).toBe(200); await route.abort(); }
     else await route.continue();
   });
   await page.getByRole("button",{name:"Submit saved draft for review"}).click();
-  await expect(page.getByRole("alert")).toBeVisible();
+  await expect(page.locator("main").getByRole("alert")).toContainText("Refresh the project before retrying");
   await expect(page.getByRole("button",{name:"Submit saved draft for review"})).toHaveCount(0);
   await page.unroute("**/api/project");
   await page.getByRole("button",{name:"Refresh project"}).click();
   await expect(page.getByRole("heading",{name:"Revision 1 · Submitted for review"})).toBeVisible();
-  expect((await (await page.request.get("/api/project")).json()).submissions).toHaveLength(1);
+  const committed=await (await page.request.get("/api/project")).json();
+  expect(committed.submissions).toHaveLength(1); expect(committed.events).toHaveLength(1);
+  await page.reload();
+  await expect(page.getByRole("heading",{name:"Revision 1 · Submitted for review"})).toBeVisible();
+  await expect(page.getByRole("button",{name:"Submit saved draft for review"})).toHaveCount(0);
+  expect(submissionRequests).toBe(1);
+  // A deliberate stale API retry models a caller retrying despite the UI warning.
+  // It is not a second browser action and must not add snapshot/history rows.
+  expect((await page.request.post("/api/project",{headers,data:{expected_account_id:initial.account_id,expected_revision:1}})).status()).toBe(409);
+  expect(await (await page.request.get("/api/project")).json()).toEqual(committed);
 });

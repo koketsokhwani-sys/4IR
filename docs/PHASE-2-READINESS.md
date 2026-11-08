@@ -1,5 +1,7 @@
 # 4IR customer foundation: migration review and production gates
 
+For the current evidence ledger, previously verified parent-supplied deployment record, tested-versus-hosted acceptance inventory and ordered owner checklist, see [owner acceptance](PHASE-2-OWNER-ACCEPTANCE.md). The historical status and decision tables below are not a fresh hosted-state inspection.
+
 Status: **hosted foundation migration applied with explicit approval; portal launch is not approved**. The public Phase 1 site, closed signup and disabled payments remain unchanged. This checklist does not authorize further provisioning, credentials, external emails, hosted database changes, merging or deployment. Never use either Munchies project.
 
 The owner subsequently approved preparing a Render Free pilot. See [the restricted pilot implementation and setup gates](PHASE-2-RENDER-PILOT.md). A dedicated-target `render-pilot` mode is now implemented behind explicit configuration, a shared HTTPS access gate and an account UUID allowlist. Defaults remain closed; no service or connection is created. The earlier [runtime assessment](PHASE-2-HOSTING-DECISION.md) is retained as decision history.

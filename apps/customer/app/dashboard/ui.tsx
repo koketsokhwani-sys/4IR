@@ -50,7 +50,7 @@ export function Dashboard() {
           if (!response.ok) throw new Error(data.error);
           setMessage(data.message); await load();
         } catch (e) {
-          setFailed(true); setMessage(e instanceof Error ? e.message : "Submission could not be confirmed. Refresh the project before retrying.");
+          setFailed(true); setMessage("Submission could not be confirmed. Refresh the project before retrying." + (e instanceof Error ? ` ${e.message}` : ""));
           setState(null); setConfirmed(false);
         } finally { setBusy(false); }
       }}>
